@@ -507,10 +507,6 @@ def differentiate(symptoms: List[str], tongue: str = "", pulse: str = "") -> Dic
                     match_count += 1
                     matched_symptoms.append(ref)
                     break
-                if len(symptom) == 1 and len(ref) >= 2 and symptom in ref:
-                    match_count += 0.5
-                    matched_symptoms.append(ref)
-                    break
                 if len(symptom) >= 2 and len(ref) >= 2:
                     common = set(symptom) & set(ref)
                     if len(common) >= 2:

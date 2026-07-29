@@ -1120,7 +1120,6 @@ function showResult(data) {
 
   // 滚动到结果顶部
   window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
 function resetAll() {
   document.getElementById('resultArea').classList.remove('visible');
