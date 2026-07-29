@@ -181,83 +181,48 @@ def yunqi():
     else:
         date_str = request.args.get("date")
     data = get_yunqi_data(date_str)
-    # 浏览器访问 -> 可视化HTML
+    # 浏览器访问 -> 可视化HTML（带滑动+AJAX实时更新）
     if "text/html" in request.headers.get("Accept", ""):
-        today = date_str or "2026-07-29"
-        err = data.get("error", "")
-        # 安全的字段取值
-        def _s(d, key, fallback=""):
-            v = d.get(key, fallback)
-            return str(v) if v is not None else fallback
-        def _ss(d, *keys):
-            for k in keys:
-                v = d.get(k)
-                if v: return str(v)
-            return ""
-
-        suiyun_desc = _ss(data, "岁运", "描述") or ""
-        ganzhi = _s(data, "干支", "")
-        tiang = _s(data, "天干", "")
-        dizhi = _s(data, "地支", "")
-        sitian = _s(data, "司天", "")
-        zaiquan = _s(data, "在泉", "")
-        desc = _s(data, "描述", "")
+        from datetime import datetime, date
+        today_d = date.today()
+        today_str = date_str or today_d.isoformat()
+        today_ts = int(datetime.strptime(today_str[:10], "%Y-%m-%d").timestamp())
+        default_date = date_str or today_d.isoformat()
         
-        # 岁运详情
-        suiyun_data = data.get("岁运", {})
-        suiyun_name = _s(suiyun_data, "岁运", "")
-        tai_bu = _s(suiyun_data, "太过不及", "")
-        wuzang = suiyun_data.get("脏腑", [])
-        wuji = _s(suiyun_data, "季节", "")
-        wuhou = _s(suiyun_data, "气候", "")
-        wuwei = _s(suiyun_data, "五味", "")
-        
-        # 当前时位
-        dangqian = data.get("当前", {})
-        dq_shiduan = _s(dangqian, "时段", "")
-        dq_zhuqi = _s(dangqian, "主气", "")
-        dq_keqi = _s(dangqian, "客气", "")
-        dq_qujian = _s(dangqian, "区间", "")
-
-        # 五行
-        wuxing = data.get("五行", {})
-        wx_zangfu = wuxing.get("脏腑", [])
-        wx_jijie = _s(wuxing, "季节", "")
-        wx_qihou = _s(wuxing, "气候", "")
-        wx_wuwei = _s(wuxing, "五味", "")
-
-        # 客气六步
-        liubu = data.get("客气六步", [])
-
-        # 主题色：按五行
-        season_colors = {
-            "木": "#27ae60", "火": "#e67e22", "土": "#d4a84b",
-            "金": "#8e44ad", "水": "#2980b9", "寒": "#2980b9",
-            "热": "#e74c3c", "暑": "#e67e22", "湿": "#d4a84b",
-            "燥": "#8e44ad", "风": "#27ae60", "火": "#e74c3c"
-        }
-
-        def wuxing_color(name):
-            for k, v in season_colors.items():
-                if k in name: return v
-            return "#3a5a7c"
-
+        # 输出骨架HTML（含初始数据）+ JS处理
         html = f'''<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>五运六气 · 莫名心</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}}
-.date-bar{{display:flex;gap:8px;margin-bottom:16px;align-items:center}}
-.date-bar input{{flex:1;padding:12px 14px;border:2px solid #ddd;border-radius:12px;font-size:16px;outline:none;font-family:inherit}}
-.date-bar input:focus{{border-color:#b8453a}}
-.date-bar button{{padding:12px 20px;background:#b8453a;color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-weight:500;white-space:nowrap}}
-.card{{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
+body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;padding-bottom:60px}}
+
+/* 控制栏 */
+.controls{{background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
+.controls .top-row{{display:flex;gap:8px;align-items:center;margin-bottom:10px}}
+.controls .top-row input[type=date]{{flex:1;padding:10px 12px;border:2px solid #ddd;border-radius:10px;font-size:16px;outline:none;font-family:inherit}}
+.controls .top-row input[type=date]:focus{{border-color:#b8453a}}
+.controls .top-row .date-label{{font-size:18px;font-weight:700;color:#2c2c2c;min-width:100px;text-align:center}}
+
+/* 滑动条 */
+.slider-row{{display:flex;gap:10px;align-items:center}}
+.slider-row input[type=range]{{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#ddd;outline:none;cursor:pointer}}
+.slider-row input[type=range]::-webkit-slider-thumb{{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#b8453a;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.2);cursor:pointer;transition:transform 0.15s}}
+.slider-row input[type=range]::-webkit-slider-thumb:hover{{transform:scale(1.15)}}
+.slider-row input[type=range]::-moz-range-thumb{{width:22px;height:22px;border-radius:50%;background:#b8453a;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.2);cursor:pointer}}
+.slider-row .play-btn{{width:40px;height:40px;border-radius:50%;background:#b8453a;color:#fff;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.2s}}
+.slider-row .play-btn:hover{{background:#a03a30}}
+.slider-row .play-btn.playing{{background:#e74c3c}}
+
+/* 内容区 - AJAX更新 */
+#yqContent{{opacity:1;transition:opacity 0.2s}}
+#yqContent.loading{{opacity:0.4}}
+.card{{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05);transition:opacity 0.2s}}
 .card-title{{font-size:14px;font-weight:600;color:#888;margin-bottom:10px;letter-spacing:0.5px}}
 .error{{background:#fef2f0;color:#b8453a;padding:14px;border-radius:10px;margin-bottom:14px}}
 .banner{{background:linear-gradient(135deg,#3a5a7c,#2c3e50);color:#fff;border-radius:14px;padding:20px;margin-bottom:14px;text-align:center}}
-.banner .ganzhi{{font-size:28px;font-weight:700;letter-spacing:2px}}
+.banner .ganzhi{{font-size:26px;font-weight:700;letter-spacing:2px}}
 .banner .sub{{font-size:13px;opacity:0.8;margin-top:4px}}
 .banner .tags{{display:flex;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap}}
 .banner .tags span{{padding:4px 12px;border-radius:16px;font-size:13px;background:rgba(255,255,255,0.15);backdrop-filter:blur(2px)}}
@@ -285,114 +250,260 @@ body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;backgrou
 .wx-item .val{{font-weight:600;margin-top:2px;font-size:14px}}
 .footer{{text-align:center;font-size:12px;color:#888;padding:16px 0}}
 a{{color:#4a7dff;text-decoration:none}}
-@media(max-width:420px){{.info-grid{{grid-template-columns:1fr}}.wuxing-grid{{grid-template-columns:1fr 1fr}}}}
-</style></head><body>
-<div class="date-bar">
-  <input type="date" id="yqDate" value="{today}" onchange="goYunqi()">
-  <button onclick="goYunqi()">推算</button>
-</div>'''
+@media(max-width:420px){{.info-grid{{grid-template-columns:1fr}}.wuxing-grid{{grid-template-columns:1fr 1fr}}.controls .top-row .date-label{{font-size:15px;min-width:80px}}}}
+</style></head>
+<body>
 
-        if err:
-            html += f'<div class="card error">{err}</div>'
-        else:
-            # Banner
-            html += f'''<div class="banner">
-  <div class="ganzhi">{ganzhi}年</div>
-  <div class="sub">{tiang}·{dizhi} | {desc[:60]}</div>
-  <div class="tags">
-    <span>🌊 {suiyun_name}运{tai_bu}</span>
-    <span>☀️ 司天 {sitian}</span>
-    <span>🌍 在泉 {zaiquan}</span>
+<div class="controls">
+  <div class="top-row">
+    <input type="date" id="yqDate" value="{default_date}" onchange="syncFromDate()">
+    <div class="date-label" id="dateLabel">{default_date}</div>
   </div>
-</div>'''
-
-            # 岁运详情
-            html += f'''<div class="card">
-  <div class="card-title">🌊 岁运</div>
-  <div class="info-grid">
-    <div class="info-item"><div class="lbl">天干</div><div class="val">{tiang}</div></div>
-    <div class="info-item"><div class="lbl">岁运</div><div class="val">{suiyun_name} ⭐</div></div>
-    <div class="info-item"><div class="lbl">太过不及</div><div class="val">{tai_bu}</div></div>
-    <div class="info-item"><div class="lbl">对应脏腑</div><div class="val">{"、".join(wuzang) if wuzang else "—"}</div></div>
-    <div class="info-item"><div class="lbl">季节</div><div class="val">{wuji}</div></div>
-    <div class="info-item"><div class="lbl">气候</div><div class="val">{wuhou}</div></div>
-    <div class="info-item"><div class="lbl">五味</div><div class="val">{wuwei}</div></div>
+  <div class="slider-row">
+    <input type="range" id="yqSlider" min="1767139200" max="1893427200" step="86400" oninput="syncFromSlider()">
+    <button class="play-btn" id="playBtn" onclick="togglePlay()">▶</button>
   </div>
-</div>'''
+</div>
 
-            # 当前时位
-            html += f'''<div class="card now-card">
-  <div class="card-title">🕐 当前时位</div>
-  <div class="now-grid">
-    <div class="now-item"><div class="lbl">时段</div><div class="val">{dq_shiduan}</div></div>
-    <div class="now-item"><div class="lbl">区间</div><div class="val" style="font-size:13px">{dq_qujian}</div></div>
-    <div class="now-item"><div class="lbl">主气</div><div class="val" style="color:{wuxing_color(dq_zhuqi)}">{dq_zhuqi}</div></div>
-    <div class="now-item"><div class="lbl">客气</div><div class="val" style="color:{wuxing_color(dq_keqi)}">{dq_keqi}</div></div>
+<div id="yqContent">
+  <div id="yqInner">
+    <div class="loading" id="initialLoading" style="text-align:center;padding:40px;color:#888">⏳ 加载中…</div>
   </div>
-</div>'''
+</div>
 
-            # 客气六步
-            html += f'''<div class="card">
-  <div class="card-title">📊 客气六步</div>
-  <div class="timeline">'''
-            for i, step in enumerate(liubu):
-                sd = _s(step, "时段", "")
-                ke = _s(step, "客气", "")
-                zhu = _s(step, "主气", "")
-                qu = _s(step, "日期", "")
-                tag = _s(step, "标记", "")
-                is_active = (sd == dq_shiduan)
-                dot_color = wuxing_color(ke)
-                active_class = ' tl-active' if is_active else ''
-                tag_html = f'<span class="tl-tag" style="background:{wuxing_color(tag)}">{tag}</span>' if tag else ''
-                active_marker = ' ← 当前' if is_active else ''
-                html += f'''<div class="tl-item{active_class}">
-  <div class="tl-dot" style="background:{dot_color}"></div>
-  <div class="tl-body">
-    <div class="tl-shiduan">{sd}{active_marker}{tag_html}</div>
-    <div class="tl-detail">客气 · {ke} ｜ 主气 · {zhu}</div>
-    <div class="tl-detail" style="font-size:12px">{qu}</div>
-  </div>
-</div>'''
-            html += '''</div>
-</div>'''
-
-            # 五行信息
-            html += f'''<div class="card">
-  <div class="card-title">🔄 五行</div>
-  <div class="wuxing-grid">
-    <div class="wx-item"><div class="lbl">脏腑</div><div class="val">{"、".join(wx_zangfu) if wx_zangfu else "—"}</div></div>
-    <div class="wx-item"><div class="lbl">季节</div><div class="val">{wx_jijie}</div></div>
-    <div class="wx-item"><div class="lbl">气候</div><div class="val">{wx_qihou}</div></div>
-    <div class="wx-item"><div class="lbl">五味</div><div class="val">{wx_wuwei}</div></div>
-  </div>
-</div>'''
-
-        html += '''
 <div class="footer"><a href="/tools">← 工具台</a> · 五运六气 · 莫名心</div>
+
 <script>
-function goYunqi() {
+// ═══════════════════════════
+// 五运六气 AJAX 滑动引擎
+// ═══════════════════════════
+
+var _playing = false;
+var _playTimer = null;
+
+// 日期 ↔ slider值转换
+function dateToVal(d) {{
+  return Math.floor(new Date(d).getTime() / 1000);
+}}
+function valToDate(v) {{
+  var d = new Date(parseInt(v) * 1000);
+  return d.toISOString().split('T')[0];
+}}
+
+// 同步：输入日期 → 更新滑块 + 加载数据
+function syncFromDate() {{
   var d = document.getElementById('yqDate').value;
-  if (d) window.location.href = '/yunqi?date=' + d;
-}
-// 暗色模式同步
-(function(){
-  try {
-    if (localStorage.getItem('xiaozhan_dark_mode') === 'true') {
+  if (!d) return;
+  document.getElementById('dateLabel').textContent = d;
+  var val = dateToVal(d);
+  document.getElementById('yqSlider').value = Math.max(1767139200, Math.min(1893427200, val));
+  loadYunqi(d);
+}}
+
+// 同步：拖动滑块 → 更新日期 + 加载数据
+function syncFromSlider() {{
+  var val = parseInt(document.getElementById('yqSlider').value);
+  var d = valToDate(val);
+  document.getElementById('yqDate').value = d;
+  document.getElementById('dateLabel').textContent = d;
+  loadYunqi(d);
+}}
+
+// AJAX 加载五运六气
+async function loadYunqi(dateStr) {{
+  var content = document.getElementById('yqContent');
+  content.classList.add('loading');
+  try {{
+    var res = await fetch('/yunqi?date=' + dateStr, {{
+      headers: {{'Accept': 'application/json'}}
+    }});
+    var data = await res.json();
+    renderYunqi(data);
+  }} catch(e) {{
+    document.getElementById('yqInner').innerHTML = '<div class="card error">加载失败: ' + e.message + '</div>';
+  }}
+  content.classList.remove('loading');
+}}
+
+// 渲染五运六气数据
+function renderYunqi(data) {{
+  if (data.error) {{
+    document.getElementById('yqInner').innerHTML = '<div class="card error">' + data.error + '</div>';
+    return;
+  }}
+  
+  function s(obj, key, fb) {{ return (obj && obj[key]) ? String(obj[key]) : (fb || ''); }}
+  function ss(obj) {{
+    for (var i = 1; i < arguments.length; i++) {{
+      var v = obj[arguments[i]];
+      if (v) return String(v);
+    }}
+    return '';
+  }}
+  
+  var ganzhi = s(data, '干支', '');
+  var tiang = s(data, '天干', '');
+  var dizhi = s(data, '地支', '');
+  var sitian = s(data, '司天', '');
+  var zaiquan = s(data, '在泉', '');
+  var desc = s(data, '描述', '');
+  
+  var sy = data['岁运'] || {{}};
+  var syName = s(sy, '岁运', '');
+  var taiBu = s(sy, '太过不及', '');
+  var zangfu = sy['脏腑'] || [];
+  var wuji = s(sy, '季节', '');
+  var whou = s(sy, '气候', '');
+  var wwei = s(sy, '五味', '');
+  
+  var dq = data['当前'] || {{}};
+  var dqSd = s(dq, '时段', '');
+  var dqZq = s(dq, '主气', '');
+  var dqKq = s(dq, '客气', '');
+  var dqQj = s(dq, '区间', '');
+  
+  var wx = data['五行'] || {{}};
+  var wxZf = wx['脏腑'] || [];
+  var wxJj = s(wx, '季节', '');
+  var wxQh = s(wx, '气候', '');
+  var wxWw = s(wx, '五味', '');
+  
+  var liubu = data['客气六步'] || [];
+  
+  // 五行配色
+  var _colors = {{
+    '木':'#27ae60','火':'#e67e22','土':'#d4a84b','金':'#8e44ad','水':'#2980b9',
+    '寒':'#2980b9','热':'#e74c3c','暑':'#e67e22','湿':'#d4a84b','燥':'#8e44ad','风':'#27ae60'
+  }};
+  function wc(name) {{
+    for (var k in _colors) {{ if (name.indexOf(k) >= 0) return _colors[k]; }}
+    return '#3a5a7c';
+  }}
+  
+  // 构建HTML
+  var html = '';
+  
+  // Banner
+  html += '<div class="banner">' +
+    '<div class="ganzhi">' + ganzhi + '年</div>' +
+    '<div class="sub">' + tiang + '·' + dizhi + ' | ' + desc.substring(0, 60) + '</div>' +
+    '<div class="tags">' +
+      '<span>🌊 ' + syName + '运' + taiBu + '</span>' +
+      '<span>☀️ 司天 ' + sitian + '</span>' +
+      '<span>🌍 在泉 ' + zaiquan + '</span>' +
+    '</div></div>';
+  
+  // 岁运
+  html += '<div class="card"><div class="card-title">🌊 岁运</div><div class="info-grid">' +
+    '<div class="info-item"><div class="lbl">天干</div><div class="val">' + tiang + '</div></div>' +
+    '<div class="info-item"><div class="lbl">岁运</div><div class="val">' + syName + ' ⭐</div></div>' +
+    '<div class="info-item"><div class="lbl">太过不及</div><div class="val">' + taiBu + '</div></div>' +
+    '<div class="info-item"><div class="lbl">对应脏腑</div><div class="val">' + (zangfu.length ? zangfu.join('、') : '—') + '</div></div>' +
+    '<div class="info-item"><div class="lbl">季节</div><div class="val">' + wuji + '</div></div>' +
+    '<div class="info-item"><div class="lbl">气候</div><div class="val">' + whou + '</div></div>' +
+    '<div class="info-item"><div class="lbl">五味</div><div class="val">' + wwei + '</div></div>' +
+    '</div></div>';
+  
+  // 当前时位
+  html += '<div class="card now-card"><div class="card-title">🕐 当前时位</div><div class="now-grid">' +
+    '<div class="now-item"><div class="lbl">时段</div><div class="val">' + dqSd + '</div></div>' +
+    '<div class="now-item"><div class="lbl">区间</div><div class="val" style="font-size:13px">' + dqQj + '</div></div>' +
+    '<div class="now-item"><div class="lbl">主气</div><div class="val" style="color:' + wc(dqZq) + '">' + dqZq + '</div></div>' +
+    '<div class="now-item"><div class="lbl">客气</div><div class="val" style="color:' + wc(dqKq) + '">' + dqKq + '</div></div>' +
+    '</div></div>';
+  
+  // 客气六步时间线
+  html += '<div class="card"><div class="card-title">📊 客气六步</div><div class="timeline">';
+  for (var i = 0; i < liubu.length; i++) {{
+    var step = liubu[i];
+    var sd = s(step, '时段', '');
+    var ke = s(step, '客气', '');
+    var zhu = s(step, '主气', '');
+    var qu = s(step, '日期', '');
+    var tag = s(step, '标记', '');
+    var isActive = (sd === dqSd);
+    var actCls = isActive ? ' tl-active' : '';
+    var mark = isActive ? ' ← 当前' : '';
+    var tagH = tag ? '<span class="tl-tag" style="background:' + wc(tag) + '">' + tag + '</span>' : '';
+    html += '<div class="tl-item' + actCls + '">' +
+      '<div class="tl-dot" style="background:' + wc(ke) + '"></div>' +
+      '<div class="tl-body">' +
+      '<div class="tl-shiduan">' + sd + mark + tagH + '</div>' +
+      '<div class="tl-detail">客气 · ' + ke + ' ｜ 主气 · ' + zhu + '</div>' +
+      '<div class="tl-detail" style="font-size:12px">' + qu + '</div>' +
+      '</div></div>';
+  }}
+  html += '</div></div>';
+  
+  // 五行
+  html += '<div class="card"><div class="card-title">🔄 五行</div><div class="wuxing-grid">' +
+    '<div class="wx-item"><div class="lbl">脏腑</div><div class="val">' + (wxZf.length ? wxZf.join('、') : '—') + '</div></div>' +
+    '<div class="wx-item"><div class="lbl">季节</div><div class="val">' + wxJj + '</div></div>' +
+    '<div class="wx-item"><div class="lbl">气候</div><div class="val">' + wxQh + '</div></div>' +
+    '<div class="wx-item"><div class="lbl">五味</div><div class="val">' + wxWw + '</div></div>' +
+    '</div></div>';
+  
+  document.getElementById('yqInner').innerHTML = html;
+  applyDarkMode();
+}}
+
+// 自动播放
+function togglePlay() {{
+  _playing = !_playing;
+  var btn = document.getElementById('playBtn');
+  if (_playing) {{
+    btn.textContent = '⏸';
+    btn.classList.add('playing');
+    _playTimer = setInterval(function() {{
+      var slider = document.getElementById('yqSlider');
+      var v = parseInt(slider.value) + 86400; // +1天
+      if (v > 1893427200) v = 1767139200; // 循环
+      slider.value = v;
+      syncFromSlider();
+    }}, 500); // 每500ms滑动一天
+  }} else {{
+    btn.textContent = '▶';
+    btn.classList.remove('playing');
+    clearInterval(_playTimer);
+  }}
+}}
+
+// 暗色模式
+function applyDarkMode() {{
+  try {{
+    if (localStorage.getItem('xiaozhan_dark_mode') === 'true') {{
       document.body.style.background = '#16161a';
       document.body.style.color = '#ece8dc';
-      document.querySelectorAll('.card, .info-item, .wx-item, .now-item').forEach(function(el){
-        el.style.background = '#1e1e24';
-        el.style.color = '#ece8dc';
-      });
-      document.querySelectorAll('.date-bar input').forEach(function(el){
-        el.style.background = '#222228';
-        el.style.borderColor = '#3a3a40';
-        el.style.color = '#ece8dc';
-      });
-    }
-  } catch(e){}
-})();
+      var cards = document.querySelectorAll('.card, .info-item, .wx-item, .now-item, .controls');
+      for (var i = 0; i < cards.length; i++) {{
+        cards[i].style.background = '#1e1e24';
+        cards[i].style.color = '#ece8dc';
+      }}
+      var inputs = document.querySelectorAll('.controls input');
+      for (var i = 0; i < inputs.length; i++) {{
+        inputs[i].style.background = '#222228';
+        inputs[i].style.borderColor = '#3a3a40';
+        inputs[i].style.color = '#ece8dc';
+      }}
+      var sliders = document.querySelectorAll('input[type=range]');
+      for (var i = 0; i < sliders.length; i++) {{
+        sliders[i].style.background = '#3a3a40';
+      }}
+    }}
+  }} catch(e){{}}
+}}
+
+// 初始化：设置滑块初始值 + 加载数据
+(function init(){{
+  var d = document.getElementById('yqDate').value;
+  if (d) {{
+    var val = dateToVal(d);
+    document.getElementById('yqSlider').value = Math.max(1767139200, Math.min(1893427200, val));
+    loadYunqi(d);
+  }}
+  applyDarkMode();
+}})();
+
 </script>
 </body></html>'''
         return html
