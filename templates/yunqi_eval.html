@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>食疗评价</title>
+<style>
+:root{--bg:#f5f0eb;--card:#fff;--text:#2c2c2c;--text-l:#888;--accent:#4a7dff;--border:#ddd}
+body.dark{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--accent:#5a8aba;--border:#3a3a40}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:600px;margin:auto}
+h1{font-size:1.2rem;margin-bottom:4px}
+.sub{color:var(--text-l);font-size:.8rem;margin-bottom:16px}
+label{font-size:.85rem;font-weight:500;display:block;margin-top:12px;margin-bottom:4px}
+input,textarea{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:16px !important;outline:none;font-family:inherit;background:var(--card);color:var(--text)}
+textarea{min-height:100px;resize:vertical}
+input:focus,textarea:focus{border-color:var(--accent)}
+button{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;margin-top:16px;font-weight:500}
+button:disabled{opacity:0.6;cursor:not-allowed}
+#result{margin-top:16px;padding:14px;background:var(--card);border-radius:10px;display:none;line-height:1.6;font-size:.85rem;white-space:pre-wrap}
+#result table{border-collapse:collapse;width:100%;margin:8px 0;font-size:.82rem}
+#result td,#result th{border:1px solid var(--border);padding:6px 8px;text-align:left}
+.error{color:#c0392b;background:#ffeaea;padding:10px;border-radius:8px;margin-top:12px;display:none}
+.footer{text-align:center;margin-top:24px;color:var(--text-l);font-size:.78rem}
+a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<h1>食疗评价</h1>
+<p class="sub">基于五运六气的食疗方案评分</p>
+<label>日期（可选，默认今天）</label>
+<input type="date" id="dateInput">
+<label>食疗方案</label>
+<textarea id="planInput" placeholder="例：薏米茯苓粥、生姜羊肉汤、枸杞菊花茶"></textarea>
+<button onclick="submitEval()">评价方案</button>
+<div id="result"></div>
+<div class="error" id="errorMsg"></div>
+<div class="footer"><a href="/tools">返回工具台</a></div>
+<script>
+async function submitEval(){
+const btn=document.querySelector('button');btn.textContent='评价中...';btn.disabled=true;
+const plan=document.getElementById('planInput').value.trim();
+if(!plan){alert('请输入食疗方案');btn.textContent='评价方案';btn.disabled=false;return}
+const res=await fetch('/yunqi-eval',{method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({plan:plan,date:document.getElementById('dateInput').value||null})});
+const d=await res.json();
+const el=document.getElementById('result');
+const err=document.getElementById('errorMsg');
+if(d.success){
+el.style.display='block';err.style.display='none';
+let html='<h3>五运六气格局</h3><p>'+d.五运六气.描述+'</p>';
+if(d.评价&&d.评价.评分!==undefined){html+='<h3>评价结果</h3>';
+if(typeof d.评价.评分==='object'){
+html+='<table><tr><th>维度</th><th>评分</th></tr>';
+for(const[k,v]of Object.entries(d.评价.评分))
+html+='<tr><td>'+k+'</td><td>'+(v||'-')+'</td></tr>';
+html+='</table>'}else{html+='<p>总分：'+d.评价.评分+'</p>'}
+if(d.评价.建议)html+='<p><b>建议：</b>'+d.评价.建议+'</p>'}
+el.innerHTML=html;
+}else{err.style.display='block';err.textContent=d.error||'评价失败';el.style.display='none'}
+btn.textContent='评价方案';btn.disabled=false}
+</script>
+<script>
+(function(){try{if(localStorage.getItem('xiaozhan_dark_mode')==='true')document.body.classList.add('dark')}catch(e){}})();
+</script>
+</body>
+</html>

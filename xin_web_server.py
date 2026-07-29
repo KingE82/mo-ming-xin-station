@@ -15,7 +15,7 @@ import urllib.request
 
 # 导入诊断引擎
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xin_claw_doctor import differentiate, get_dietary_plan, get_treatment_plan, nature_to_phase
+from xin_claw_doctor import differentiate, get_dietary_plan, get_treatment_plan, nature_to_phase, SYNDROME_KNOWLEDGE
 
 PORT = 8080
 
@@ -556,6 +556,21 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
     <div class="error-msg" id="errorMsg"></div>
   </div>
 
+  <!-- ══════ 追加症状输入（对话式迭代） ══════ -->
+  <div class="card" id="appendCard" style="display:none">
+    <div class="card-title">💬 还有没有其他不舒服？</div>
+    <div id="accumulatedSymptoms" style="font-size:13px;color:var(--text-light);margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="appendInput"
+        style="flex:1;padding:12px;border:2px solid #ddd;border-radius:10px;font-size:16px;outline:none;font-family:inherit;background:var(--card);color:var(--text);"
+        placeholder="例如：最近还有点咳嗽…"
+        onkeydown="if(event.key==='Enter') doAppend()">
+      <button onclick="doAppend()"
+        style="padding:12px 18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:500;white-space:nowrap;">追加</button>
+    </div>
+    <button id="appendSubmitBtn" onclick="finalSubmit()" style="display:none;width:100%;margin-top:10px;padding:12px;background:#4a7c59;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:500;">🔄 拿到全部症状了，重新辨证</button>
+  </div>
+
   <button class="btn-primary" onclick="resetAll()" style="background:var(--text-light)">🔄 重新辨证</button>
 </div>
 
@@ -793,11 +808,95 @@ async function submitDiagnosis() {
 
     document.getElementById('loading').style.display = 'none';
     showResult(data);
+    initAppend(symptoms, tongue, pulse);
   } catch (e) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('inputArea').style.display = 'block';
     alert('网络错误: ' + e.message);
   }
+}
+
+// ═════════════════════════════════
+// 追加症状 — 对话式迭代
+// ═════════════════════════════════
+
+var _allSymptoms = [];  // 累积症状
+var _lastTongue = '';
+var _lastPulse = '';
+var _submitting = false;
+
+function initAppend(symptoms, tongue, pulse) {
+  _allSymptoms = symptoms.slice();
+  _lastTongue = tongue;
+  _lastPulse = pulse;
+  document.getElementById('appendCard').style.display = 'block';
+  updateAccumulated();
+}
+
+function updateAccumulated() {
+  var el = document.getElementById('accumulatedSymptoms');
+  if (_allSymptoms.length) {
+    el.innerHTML = '<span style="font-weight:600">已收集症状：</span>' +
+      _allSymptoms.map(function(s,i){ return '<span style="display:inline-block;padding:2px 8px;margin:2px;background:var(--accent-light);border-radius:12px;font-size:12px;">' + s + '</span>'; }).join('') +
+      ' <span style="font-size:11px;color:var(--text-light);">(' + _allSymptoms.length + '项)</span>';
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function doAppend() {
+  var inp = document.getElementById('appendInput');
+  var text = inp.value.trim();
+  if (!text) return;
+  // 智能分词：支持逗号/顿号/分号分隔
+  var newSymptoms = text.split(/[，,、；;]/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length >= 2; });
+  if (!newSymptoms.length) { showToast('请描述不舒服的感觉', 'error'); return; }
+  for (var i = 0; i < newSymptoms.length; i++) {
+    if (_allSymptoms.indexOf(newSymptoms[i]) === -1) {
+      _allSymptoms.push(newSymptoms[i]);
+    }
+  }
+  inp.value = '';
+  updateAccumulated();
+  showToast('已追加 ' + newSymptoms.length + ' 项症状', 'success');
+  showAppendBtn();
+}
+
+function showAppendBtn() {
+  document.getElementById('appendSubmitBtn').style.display = 'block';
+}
+
+function finalSubmit() {
+  if (_submitting) return;
+  _submitting = true;
+  var btn = document.getElementById('appendSubmitBtn');
+  btn.textContent = '⏳ 重新辨证中…';
+  btn.disabled = true;
+  
+  document.getElementById('inputArea').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  
+  fetch('/diagnose', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      symptoms: _allSymptoms,
+      tongue: _lastTongue,
+      pulse: _lastPulse
+    })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('loading').style.display = 'none';
+      _submitting = false;
+      btn.textContent = '🔄 重新辨证';
+      btn.disabled = false;
+      showResult(data);
+    }).catch(function(e) {
+      document.getElementById('loading').style.display = 'none';
+      _submitting = false;
+      btn.textContent = '🔄 重新辨证';
+      btn.disabled = false;
+      showToast('网络错误: ' + e.message, 'error');
+    });
 }
 
 function showResult(data) {
@@ -820,6 +919,17 @@ function showResult(data) {
     sp.style.cssText = 'font-size:13px;opacity:0.9;margin-top:6px;background:rgba(255,255,255,0.2);padding:6px 10px;border-radius:8px;';
     sp.textContent = `⚠ ${data.special_pattern}: ${data.special_desc || ''}`;
     h.appendChild(sp);
+  }
+
+  // 兼夹证展示
+  if (data.concurrent_syndrome) {
+    var cs = data.concurrent_syndrome;
+    var csDiv = document.createElement('div');
+    csDiv.style.cssText = 'margin-top:8px;padding:8px 10px;background:rgba(232,213,208,0.4);border-radius:8px;border-left:3px solid #b8453a;';
+    csDiv.innerHTML = '<div style="font-size:12px;font-weight:600;color:#b8453a;">➕ 兼夹证</div>' +
+      '<div style="font-size:14px;font-weight:500;margin-top:2px;">' + cs.syndrome + '</div>' +
+      '<div style="font-size:12px;color:#888;">' + cs.match_detail + '</div>';
+    h.appendChild(csDiv);
   }
 
   // 推荐食材
@@ -1106,10 +1216,41 @@ def run_diagnosis(symptoms, tongue, pulse):
             result['daily_care'] = tx.get('daily_care', []) if isinstance(tx.get('daily_care'), list) else [tx.get('daily_care', '')]
             result['emotional_care'] = tx.get('emotional_care', '')
             result['sleep_advice'] = tx.get('sleep_advice', '')
+
+        # ════════ 兼夹证合并 ════════
+        concurrent = dx.get('兼夹证')
+        result['concurrent_syndrome'] = concurrent
+        if concurrent:
+            cs_name = concurrent.get('syndrome', '')
+            cs_info = SYNDROME_KNOWLEDGE.get(cs_name) if cs_name else None
+            if cs_info:
+                # 合并食材（去重）
+                for ing in cs_info.get('recommended', []):
+                    if ing not in result['recommended_ingredients']:
+                        result['recommended_ingredients'].append(ing)
+                # 合并忌口（去重）
+                for av in cs_info.get('avoid', []):
+                    if av not in result['foods_to_avoid']:
+                        result['foods_to_avoid'].append(av)
+                # 合并食疗方
+                for r in cs_info.get('foods', []):
+                    r_name = r if isinstance(r, str) else r.get('name', r)
+                    if r_name not in result['recipes']:
+                        result['recipes'].append(r_name)
+            # 合并穴位/调护（去重）
+            cs_tx = get_treatment_plan(cs_name) if cs_name else None
+            if cs_tx and tx:
+                for ap in cs_tx.get('acupoints', []):
+                    if ap not in result.get('acupoints', []):
+                        result['acupoints'].append(ap)
+                for dc in cs_tx.get('daily_care', []):
+                    if dc not in result.get('daily_care', []):
+                        result['daily_care'].append(dc)
     else:
         result['recommended_ingredients'] = []
         result['foods_to_avoid'] = []
         result['recipes'] = []
+        result['concurrent_syndrome'] = None
 
     # 知识图谱补充（TCM-MKG + SymMap 双源）
     try:

@@ -587,57 +587,89 @@ def ask():
     if request.method == "GET":
         return """<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>AI问答 · 莫名心小站</title>
 <style>
+:root{--bg:#f5f0eb;--card:#fff;--text:#2c2c2c;--text-l:#888;--accent:#b8453a}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}
+body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:640px;margin:0 auto;padding-bottom:60px}
+body.dark{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--accent:#d86050}
 h1{font-size:20px;margin-bottom:4px}
-.sub{color:#888;font-size:.8rem;margin-bottom:16px}
-textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box}
-button{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;cursor:pointer}
-pre{background:#fff;padding:14px;border-radius:10px;font-size:14px;line-height:1.6;white-space:pre-wrap;margin:0;margin-bottom:12px}
-pre#result{display:none}.result-header{font-weight:600;margin-bottom:8px}
-.footer{text-align:center;margin-top:20px}
+.sub{color:var(--text-l);font-size:.8rem;margin-bottom:16px}
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+textarea{width:100%;padding:12px;border:2px solid #ddd;border-radius:12px;font-size:16px !important;outline:none;font-family:inherit;resize:vertical;transition:border 0.2s;background:var(--card);color:var(--text)}
+textarea:focus{border-color:var(--accent)}
+body.dark textarea{background:#222228;border-color:#3a3a40;color:var(--text)}
+button{width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:12px;font-size:16px;cursor:pointer;font-weight:500;transition:opacity 0.2s}
+button:active{opacity:0.8}
+button:disabled{opacity:0.5;cursor:not-allowed}
+.result-box{display:none;background:var(--card);border-radius:14px;padding:16px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.loading{display:none;text-align:center;padding:16px;color:var(--text-l)}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top:3px solid var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.footer{text-align:center;font-size:12px;color:var(--text-l);padding:16px 0}
 a{color:#4a7dff;text-decoration:none}
-</style></head><body><h1>🤖 AI问答</h1>
+</style></head><body>
+<h1>🤖 AI问答</h1>
 <p class="sub">DeepSeek V4 Flash 驱动</p>
-<form method="post" action="/ask">
-<textarea name="question" rows="4" placeholder="输入你的问题…" required></textarea>
-<button type="submit">发送</button>
-</form>
+<div class="card">
+<textarea id="q" rows="4" placeholder="输入你的问题…"></textarea>
+<button id="sendBtn" onclick="askAI()">发送</button>
+</div>
+<div class="loading" id="loading"><span class="spinner"></span>思考中…</div>
+<div class="result-box" id="result"></div>
 <div class="footer"><a href="/tools">← 工具台</a></div>
 <script>
-// 短期记忆：退出重进不用重填
-(function(){
-  var KEY = "xin_steward_form";
-  var saved = localStorage.getItem(KEY);
-  if(saved){
-    try{
-      var d = JSON.parse(saved);
-      var els = document.querySelectorAll("[name=bdate],[name=btime],[name=sex],[name=mode]");
-      for(var i=0;i<els.length;i++){
-        var el = els[i];
-        var val = d[el.name];
-        if(val !== undefined){
-          if(el.type==="radio"){ el.checked = el.value===val; }
-          else { el.value = val; }
-        }
+function askAI() {
+  var q = document.getElementById('q').value.trim();
+  if (!q) return;
+  var btn = document.getElementById('sendBtn');
+  var loading = document.getElementById('loading');
+  var result = document.getElementById('result');
+  btn.disabled = true;
+  loading.style.display = 'block';
+  result.style.display = 'none';
+  fetch('/ask', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({question: q})
+  }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      loading.style.display = 'none';
+      btn.disabled = false;
+      if (d.success) {
+        result.innerHTML = renderMD(d.answer);
+        result.style.display = 'block';
+      } else {
+        result.innerHTML = '<div style="color:#d86050">❌ ' + (d.error || '未知错误') + '</div>';
+        result.style.display = 'block';
       }
-    }catch(e){}
-  }
-  document.querySelector("#stewardForm form")?.addEventListener("submit", function(){
-    var data = {};
-    var els = document.querySelectorAll("[name=bdate],[name=btime],[name=sex],[name=mode]");
-    for(var i=0;i<els.length;i++){
-      var el = els[i];
-      if(el.type==="radio"){ if(el.checked) data[el.name]=el.value; }
-      else { data[el.name]=el.value; }
-    }
-    localStorage.setItem(KEY, JSON.stringify(data));
-  });
+    }).catch(function(e) {
+      loading.style.display = 'none';
+      btn.disabled = false;
+      result.innerHTML = '<div style="color:#d86050">❌ 网络错误</div>';
+      result.style.display = 'block';
+    });
+}
+function renderMD(t) {
+  if (!t) return '';
+  return t
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\\w*)\\n([\\s\\S]*?)```/g,'<pre><code>$2</code></pre>')
+    .replace(/\`([^']+)\`/g,'<code>$1</code>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^\s*[-*+] (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\\n?)+/g,'<ul>$&</ul>')
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/\n/g,'<br>');
+}
+// 暗色同步
+(function(){
+  try {
+    if (localStorage.getItem('xiaozhan_dark_mode') === 'true')
+      document.body.classList.add('dark');
+  } catch(e){}
 })();
-\ntoggleDual();<\/script>
+</script>
 </body></html>"""
     data = request.get_json(silent=True) or {}
     question = data.get("question", "").strip()
@@ -851,11 +883,13 @@ def philosophy_detail(slug=""):
             name_safe = hmod.escape(name)
             body_safe = hmod.escape(body)
             return f"""<!DOCTYPE html><html lang="zh-CN"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>{name_safe} · 哲思文库</title>
 <style>
+:root{{--bg:#f5f0eb;--card:#fff;--text:#2c2c2c;--text-l:#888;--accent:#b8453a}}
+body.dark{{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--accent:#d86050}}
 *{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}}
+body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:640px;margin:0 auto}}
 h1{{font-size:18px;margin-bottom:4px}}
 .sub{{color:#888;font-size:.8rem;margin-bottom:16px;word-wrap:break-word}}
 .content{{background:#fff;border-radius:12px;padding:16px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word}}
@@ -865,7 +899,9 @@ a{{color:#4a7dff;text-decoration:none}}
 <h1>{name_safe}</h1>
 <p class="sub">{title_safe}</p>
 <div class="content">{body_safe}</div>
-<div class="footer"><a href="https://plato.stanford.edu/entries/{slug}/" target="_blank" style="color:#2980b9">🔗 查看SEP原文</a> · <a href="/philosophy">← 哲思文库</a></div></body></html>"""
+<div class="footer"><a href="https://plato.stanford.edu/entries/{slug}/" target="_blank" style="color:#2980b9">🔗 查看SEP原文</a> · <a href="/philosophy">← 哲思文库</a></div>
+<script>try{{if(localStorage.getItem('xiaozhan_dark_mode')==='true')document.body.classList.add('dark')}}catch(e){{}}</script>
+</body></html>"""
     return "<h1>未找到</h1><p><a href='/philosophy'>← 返回</a></p>", 404
 
 
@@ -1747,26 +1783,31 @@ def tools():
     """工具台 · 移动端适配"""
     return '''<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>工具台 · 莫名心小站</title>
 <style>
+:root{--bg:#f5f5f5;--card:#fff;--text:#222;--text-l:#666;--shadow:0 1px 4px rgba(0,0,0,.08)}
+body.dark{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--shadow:0 1px 4px rgba(0,0,0,.3)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;color:#222;padding:16px;max-width:100%;margin:0 auto}
+body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:100%;margin:0 auto;padding-bottom:60px}
 h1{font-size:1.3rem;margin-bottom:4px}
-.sub{color:#666;font-size:.82rem;margin-bottom:16px}
+.sub{color:var(--text-l);font-size:.82rem;margin-bottom:16px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:480px){.grid{grid-template-columns:1fr}}
-.card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-decoration:none;color:#222;transition:.2s;display:flex;flex-direction:column;align-items:center;text-align:center}
+.card{background:var(--card);border-radius:12px;padding:16px;box-shadow:var(--shadow);text-decoration:none;color:var(--text);transition:.2s;display:flex;flex-direction:column;align-items:center;text-align:center}
 .card:hover{box-shadow:0 3px 12px rgba(0,0,0,.12);transform:translateY(-1px)}
 .card-icon{font-size:2rem;margin-bottom:8px}
 .card-name{font-weight:600;font-size:.95rem;margin-bottom:4px}
-.card-desc{color:#888;font-size:.78rem;line-height:1.4}
+.card-desc{color:var(--text-l);font-size:.78rem;line-height:1.4}
 .card .badge{font-size:.7rem;padding:2px 8px;border-radius:10px;margin-top:6px}
 .badge-new{background:#4a7dff22;color:#4a7dff}
 .badge-ok{background:#27ae6022;color:#27ae60}
-.footer{text-align:center;color:#999;font-size:.78rem;margin-top:24px}
+.footer{text-align:center;color:var(--text-l);font-size:.78rem;margin-top:24px}
 .footer a{color:#4a7dff;text-decoration:none}
 </style></head><body>
+<script>
+(function(){try{if(localStorage.getItem('xiaozhan_dark_mode')==='true')document.body.classList.add('dark')}catch(e){}})();
+</script>
 <h1>🧩 莫名心·工具台</h1>
 <p class="sub">小站全部工具 — 移动端适配</p>
 
