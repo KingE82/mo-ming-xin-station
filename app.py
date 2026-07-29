@@ -5,14 +5,14 @@
 多线程 + 密码锁 + 全部原有功能
 """
 
-import sys, os, json, hashlib, uuid
+import sys, os, json, hashlib, uuid, html
 from datetime import timedelta
 
 # 导入原本的完整小站
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from xin_web_server import (
     HTML_PAGE, get_yunqi_data, search_knowledge_refs, ai_ask,
-    _本地五运六气, DiagnoseHandler, _get_ai_key, run_diagnosis,
+    _本地五运六气, DiagnoseHandler, _get_ai_key,
 )
 
 # Flask
@@ -20,6 +20,20 @@ from flask import Flask, request, jsonify, session, redirect, make_response
 from waitress import serve
 
 app = Flask(__name__)
+app.config["PROPAGATE_EXCEPTIONS"] = False
+app.config["TRAP_HTTP_EXCEPTIONS"] = False
+
+# 工具台 Blueprint（隔离路由注册）
+try:
+    from tools_blueprint import tools_bp
+    app.register_blueprint(tools_bp)
+except Exception:
+    pass
+
+
+def ping():
+    return "pong"
+
 app.secret_key = "mo-ming-xin-xiao-zhan-2026-07-26"
 app.permanent_session_lifetime = timedelta(hours=4)
 
@@ -166,7 +180,223 @@ def yunqi():
         date_str = request.json.get("date") if request.json else None
     else:
         date_str = request.args.get("date")
-    return jsonify(get_yunqi_data(date_str))
+    data = get_yunqi_data(date_str)
+    # 浏览器访问 -> 可视化HTML
+    if "text/html" in request.headers.get("Accept", ""):
+        today = date_str or "2026-07-29"
+        err = data.get("error", "")
+        # 安全的字段取值
+        def _s(d, key, fallback=""):
+            v = d.get(key, fallback)
+            return str(v) if v is not None else fallback
+        def _ss(d, *keys):
+            for k in keys:
+                v = d.get(k)
+                if v: return str(v)
+            return ""
+
+        suiyun_desc = _ss(data, "岁运", "描述") or ""
+        ganzhi = _s(data, "干支", "")
+        tiang = _s(data, "天干", "")
+        dizhi = _s(data, "地支", "")
+        sitian = _s(data, "司天", "")
+        zaiquan = _s(data, "在泉", "")
+        desc = _s(data, "描述", "")
+        
+        # 岁运详情
+        suiyun_data = data.get("岁运", {})
+        suiyun_name = _s(suiyun_data, "岁运", "")
+        tai_bu = _s(suiyun_data, "太过不及", "")
+        wuzang = suiyun_data.get("脏腑", [])
+        wuji = _s(suiyun_data, "季节", "")
+        wuhou = _s(suiyun_data, "气候", "")
+        wuwei = _s(suiyun_data, "五味", "")
+        
+        # 当前时位
+        dangqian = data.get("当前", {})
+        dq_shiduan = _s(dangqian, "时段", "")
+        dq_zhuqi = _s(dangqian, "主气", "")
+        dq_keqi = _s(dangqian, "客气", "")
+        dq_qujian = _s(dangqian, "区间", "")
+
+        # 五行
+        wuxing = data.get("五行", {})
+        wx_zangfu = wuxing.get("脏腑", [])
+        wx_jijie = _s(wuxing, "季节", "")
+        wx_qihou = _s(wuxing, "气候", "")
+        wx_wuwei = _s(wuxing, "五味", "")
+
+        # 客气六步
+        liubu = data.get("客气六步", [])
+
+        # 主题色：按五行
+        season_colors = {
+            "木": "#27ae60", "火": "#e67e22", "土": "#d4a84b",
+            "金": "#8e44ad", "水": "#2980b9", "寒": "#2980b9",
+            "热": "#e74c3c", "暑": "#e67e22", "湿": "#d4a84b",
+            "燥": "#8e44ad", "风": "#27ae60", "火": "#e74c3c"
+        }
+
+        def wuxing_color(name):
+            for k, v in season_colors.items():
+                if k in name: return v
+            return "#3a5a7c"
+
+        html = f'''<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>五运六气 · 莫名心</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}}
+.date-bar{{display:flex;gap:8px;margin-bottom:16px;align-items:center}}
+.date-bar input{{flex:1;padding:12px 14px;border:2px solid #ddd;border-radius:12px;font-size:16px;outline:none;font-family:inherit}}
+.date-bar input:focus{{border-color:#b8453a}}
+.date-bar button{{padding:12px 20px;background:#b8453a;color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-weight:500;white-space:nowrap}}
+.card{{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
+.card-title{{font-size:14px;font-weight:600;color:#888;margin-bottom:10px;letter-spacing:0.5px}}
+.error{{background:#fef2f0;color:#b8453a;padding:14px;border-radius:10px;margin-bottom:14px}}
+.banner{{background:linear-gradient(135deg,#3a5a7c,#2c3e50);color:#fff;border-radius:14px;padding:20px;margin-bottom:14px;text-align:center}}
+.banner .ganzhi{{font-size:28px;font-weight:700;letter-spacing:2px}}
+.banner .sub{{font-size:13px;opacity:0.8;margin-top:4px}}
+.banner .tags{{display:flex;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap}}
+.banner .tags span{{padding:4px 12px;border-radius:16px;font-size:13px;background:rgba(255,255,255,0.15);backdrop-filter:blur(2px)}}
+.info-grid{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
+.info-item{{padding:10px 12px;background:#faf7f4;border-radius:10px;font-size:13px}}
+.info-item .lbl{{color:#888;font-size:12px}}
+.info-item .val{{font-weight:600;margin-top:2px}}
+.now-card{{border-left:4px solid #e67e22}}
+.now-card .now-grid{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
+.now-item{{text-align:center;padding:8px}}
+.now-item .lbl{{font-size:11px;color:#888;margin-bottom:2px}}
+.now-item .val{{font-size:16px;font-weight:600}}
+.timeline{{position:relative;padding:0}}
+.tl-item{{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f0ebe6;align-items:center}}
+.tl-item:last-child{{border:none}}
+.tl-dot{{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px}}
+.tl-body{{flex:1;font-size:13px}}
+.tl-body .tl-shiduan{{font-weight:600;font-size:14px}}
+.tl-body .tl-detail{{color:#888;margin-top:1px}}
+.tl-tag{{font-size:11px;padding:2px 8px;border-radius:10px;margin-left:6px;color:#fff}}
+.tl-active{{background:#ede7e0;border-radius:10px;margin:-4px -8px;padding:4px 8px}}
+.wuxing-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}}
+.wx-item{{text-align:center;padding:10px;background:#faf7f4;border-radius:10px;font-size:12px}}
+.wx-item .lbl{{color:#888}}
+.wx-item .val{{font-weight:600;margin-top:2px;font-size:14px}}
+.footer{{text-align:center;font-size:12px;color:#888;padding:16px 0}}
+a{{color:#4a7dff;text-decoration:none}}
+@media(max-width:420px){{.info-grid{{grid-template-columns:1fr}}.wuxing-grid{{grid-template-columns:1fr 1fr}}}}
+</style></head><body>
+<div class="date-bar">
+  <input type="date" id="yqDate" value="{today}" onchange="goYunqi()">
+  <button onclick="goYunqi()">推算</button>
+</div>'''
+
+        if err:
+            html += f'<div class="card error">{err}</div>'
+        else:
+            # Banner
+            html += f'''<div class="banner">
+  <div class="ganzhi">{ganzhi}年</div>
+  <div class="sub">{tiang}·{dizhi} | {desc[:60]}</div>
+  <div class="tags">
+    <span>🌊 {suiyun_name}运{tai_bu}</span>
+    <span>☀️ 司天 {sitian}</span>
+    <span>🌍 在泉 {zaiquan}</span>
+  </div>
+</div>'''
+
+            # 岁运详情
+            html += f'''<div class="card">
+  <div class="card-title">🌊 岁运</div>
+  <div class="info-grid">
+    <div class="info-item"><div class="lbl">天干</div><div class="val">{tiang}</div></div>
+    <div class="info-item"><div class="lbl">岁运</div><div class="val">{suiyun_name} ⭐</div></div>
+    <div class="info-item"><div class="lbl">太过不及</div><div class="val">{tai_bu}</div></div>
+    <div class="info-item"><div class="lbl">对应脏腑</div><div class="val">{"、".join(wuzang) if wuzang else "—"}</div></div>
+    <div class="info-item"><div class="lbl">季节</div><div class="val">{wuji}</div></div>
+    <div class="info-item"><div class="lbl">气候</div><div class="val">{wuhou}</div></div>
+    <div class="info-item"><div class="lbl">五味</div><div class="val">{wuwei}</div></div>
+  </div>
+</div>'''
+
+            # 当前时位
+            html += f'''<div class="card now-card">
+  <div class="card-title">🕐 当前时位</div>
+  <div class="now-grid">
+    <div class="now-item"><div class="lbl">时段</div><div class="val">{dq_shiduan}</div></div>
+    <div class="now-item"><div class="lbl">区间</div><div class="val" style="font-size:13px">{dq_qujian}</div></div>
+    <div class="now-item"><div class="lbl">主气</div><div class="val" style="color:{wuxing_color(dq_zhuqi)}">{dq_zhuqi}</div></div>
+    <div class="now-item"><div class="lbl">客气</div><div class="val" style="color:{wuxing_color(dq_keqi)}">{dq_keqi}</div></div>
+  </div>
+</div>'''
+
+            # 客气六步
+            html += f'''<div class="card">
+  <div class="card-title">📊 客气六步</div>
+  <div class="timeline">'''
+            for i, step in enumerate(liubu):
+                sd = _s(step, "时段", "")
+                ke = _s(step, "客气", "")
+                zhu = _s(step, "主气", "")
+                qu = _s(step, "日期", "")
+                tag = _s(step, "标记", "")
+                is_active = (sd == dq_shiduan)
+                dot_color = wuxing_color(ke)
+                active_class = ' tl-active' if is_active else ''
+                tag_html = f'<span class="tl-tag" style="background:{wuxing_color(tag)}">{tag}</span>' if tag else ''
+                active_marker = ' ← 当前' if is_active else ''
+                html += f'''<div class="tl-item{active_class}">
+  <div class="tl-dot" style="background:{dot_color}"></div>
+  <div class="tl-body">
+    <div class="tl-shiduan">{sd}{active_marker}{tag_html}</div>
+    <div class="tl-detail">客气 · {ke} ｜ 主气 · {zhu}</div>
+    <div class="tl-detail" style="font-size:12px">{qu}</div>
+  </div>
+</div>'''
+            html += '''</div>
+</div>'''
+
+            # 五行信息
+            html += f'''<div class="card">
+  <div class="card-title">🔄 五行</div>
+  <div class="wuxing-grid">
+    <div class="wx-item"><div class="lbl">脏腑</div><div class="val">{"、".join(wx_zangfu) if wx_zangfu else "—"}</div></div>
+    <div class="wx-item"><div class="lbl">季节</div><div class="val">{wx_jijie}</div></div>
+    <div class="wx-item"><div class="lbl">气候</div><div class="val">{wx_qihou}</div></div>
+    <div class="wx-item"><div class="lbl">五味</div><div class="val">{wx_wuwei}</div></div>
+  </div>
+</div>'''
+
+        html += '''
+<div class="footer"><a href="/tools">← 工具台</a> · 五运六气 · 莫名心</div>
+<script>
+function goYunqi() {
+  var d = document.getElementById('yqDate').value;
+  if (d) window.location.href = '/yunqi?date=' + d;
+}
+// 暗色模式同步
+(function(){
+  try {
+    if (localStorage.getItem('xiaozhan_dark_mode') === 'true') {
+      document.body.style.background = '#16161a';
+      document.body.style.color = '#ece8dc';
+      document.querySelectorAll('.card, .info-item, .wx-item, .now-item').forEach(function(el){
+        el.style.background = '#1e1e24';
+        el.style.color = '#ece8dc';
+      });
+      document.querySelectorAll('.date-bar input').forEach(function(el){
+        el.style.background = '#222228';
+        el.style.borderColor = '#3a3a40';
+        el.style.color = '#ece8dc';
+      });
+    }
+  } catch(e){}
+})();
+</script>
+</body></html>'''
+        return html
+    return jsonify(data)
 
 
 @app.route("/yunqi-v2", methods=["GET", "POST"])
@@ -187,24 +417,36 @@ def yunqi_v2():
 @app.route("/yunqi-eval", methods=["GET", "POST"])
 @login_required
 def yunqi_eval():
-    date_str = None
-    plan = ""
-    if request.method == "POST":
-        date_str = request.json.get("date") if request.json else None
-        plan = request.json.get("plan", "") if request.json else ""
-    else:
-        date_str = request.args.get("date")
-        plan = request.args.get("plan", "")
-    if plan:
-        try:
-            from 五运六气 import 推算
-            from 五运六气.eval import 评价食疗方案
-            r = 推算(date_str)
-            ev = 评价食疗方案(r, plan)
-            return jsonify({"success": True, "五运六气": r, "评价": ev})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
-    return jsonify({"success": False, "error": "需要 plan 参数"}), 400
+    if request.method == "GET":
+        tmpl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "yunqi_eval.html")
+        if os.path.isfile(tmpl):
+            with open(tmpl, encoding="utf-8") as _tf:
+                return _tf.read()
+        return "<h1>模板未找到</h1>", 404
+    plan = request.json.get("plan", "") if request.json else ""
+    if not plan:
+        return jsonify({"success": False, "error": "需要 plan 参数"}), 400
+    date_str = request.json.get("date") if request.json else None
+    try:
+        from 五运六气 import 推算
+        from 五运六气.eval import 评价食疗方案
+        r = 推算(date_str)
+        ev = 评价食疗方案(r, plan)
+        return jsonify({"success": True, "五运六气": r, "评价": ev})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/diagnose", methods=["POST"])
+@login_required
+def diagnose():
+    from xin_web_server import run_diagnosis
+    d = request.json or {}
+    return jsonify(run_diagnosis(
+        d.get("symptoms", []),
+        d.get("tongue", ""),
+        d.get("pulse", "")
+    ))
 
 
 @app.route("/philosophy-fetch", methods=["POST"])
@@ -228,12 +470,70 @@ def philosophy_concept():
     return jsonify(handle_philosophy_concept(request.json or {}))
 
 
-@app.route("/ask", methods=["POST"])
+@app.route("/ask", methods=["GET", "POST"])
 @login_required
 def ask():
-    data = request.json or {}
+    if request.method == "GET":
+        return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI问答 · 莫名心小站</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:#888;font-size:.8rem;margin-bottom:16px}
+textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:8px;box-sizing:border-box}
+button{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;cursor:pointer}
+pre{background:#fff;padding:14px;border-radius:10px;font-size:14px;line-height:1.6;white-space:pre-wrap;margin:0;margin-bottom:12px}
+pre#result{display:none}.result-header{font-weight:600;margin-bottom:8px}
+.footer{text-align:center;margin-top:20px}
+a{color:#4a7dff;text-decoration:none}
+</style></head><body><h1>🤖 AI问答</h1>
+<p class="sub">DeepSeek V4 Flash 驱动</p>
+<form method="post" action="/ask">
+<textarea name="question" rows="4" placeholder="输入你的问题…" required></textarea>
+<button type="submit">发送</button>
+</form>
+<div class="footer"><a href="/tools">← 工具台</a></div>
+<script>
+// 短期记忆：退出重进不用重填
+(function(){
+  var KEY = "xin_steward_form";
+  var saved = localStorage.getItem(KEY);
+  if(saved){
+    try{
+      var d = JSON.parse(saved);
+      var els = document.querySelectorAll("[name=bdate],[name=btime],[name=sex],[name=mode]");
+      for(var i=0;i<els.length;i++){
+        var el = els[i];
+        var val = d[el.name];
+        if(val !== undefined){
+          if(el.type==="radio"){ el.checked = el.value===val; }
+          else { el.value = val; }
+        }
+      }
+    }catch(e){}
+  }
+  document.querySelector("#stewardForm form")?.addEventListener("submit", function(){
+    var data = {};
+    var els = document.querySelectorAll("[name=bdate],[name=btime],[name=sex],[name=mode]");
+    for(var i=0;i<els.length;i++){
+      var el = els[i];
+      if(el.type==="radio"){ if(el.checked) data[el.name]=el.value; }
+      else { data[el.name]=el.value; }
+    }
+    localStorage.setItem(KEY, JSON.stringify(data));
+  });
+})();
+\ntoggleDual();<\/script>
+</body></html>"""
+    data = request.get_json(silent=True) or {}
     question = data.get("question", "").strip()
     context = data.get("context", "")
+    # 接受表单POST
+    if not question:
+        question = request.form.get("question", "").strip()
     if not question:
         return jsonify({"success": False, "error": "需要 question 参数"}), 400
     result = ai_ask(question, context)
@@ -291,6 +591,32 @@ def ask():
                     break
         except Exception:
             pass
+    # 浏览器表单提交 -> 返回 HTML 页面
+    if request.content_type and "form" in request.content_type:
+        html = """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI问答 · 结果 · 莫名心小站</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:#888;font-size:.8rem;margin-bottom:16px}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.answer{font-size:14px;line-height:1.7;white-space:pre-wrap}
+.error{background:#fef2f0;color:#b8453a;padding:14px;border-radius:10px;font-size:14px}
+.footer{text-align:center;margin-top:20px;color:#888;font-size:.8rem}
+a{color:#4a7dff;text-decoration:none}
+.btn{display:block;text-align:center;padding:12px;background:#b8453a;color:white;border-radius:10px;text-decoration:none;margin:16px 0}
+</style></head><body><h1>🤖 AI问答</h1>
+<p class="sub">提问: """ + str(question[:100]) + """</p>"""
+        if result.get("success") and result.get("answer"):
+            html += """<div class="card"><div class="answer">""" + result["answer"] + """</div></div>"""
+        else:
+            html += """<div class="card"><div class="error">""" + result.get("error", "未知错误") + """</div></div>"""
+        html += """<a href="/ask" class="btn">继续提问</a>"""
+        html += """<div class="footer"><a href="/tools">← 工具台</a></div></body></html>"""
+        return html
     return jsonify(result)
 
 
@@ -303,6 +629,33 @@ def knowledge_search():
     else:
         query = request.args.get("query", "")
     results = search_knowledge_refs(query)
+    # 浏览器访问 -> HTML 搜索结果页
+    if request.method == "GET" and "text/html" in request.headers.get("Accept", ""):
+        html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>搜索结果 · 莫名心小站</title><style>'
+        html += '*{margin:0;padding:0;box-sizing:border-box}'
+        html += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
+        html += 'h1{font-size:20px;margin-bottom:4px}'
+        html += '.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
+        html += '.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;text-decoration:none;color:#2c2c2c;display:block;box-shadow:0 1px 4px rgba(0,0,0,.06)}'
+        html += '.name{font-weight:600;font-size:14px}'
+        html += '.desc{color:#666;font-size:.8rem;margin-top:2px}'
+        html += '.footer{text-align:center;margin-top:20px}'
+        html += 'a{color:#4a7dff;text-decoration:none}'
+        html += 'input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:12px}'
+        html += '</style></head><body>'
+        html += '<form method="get" action="/knowledge-search"><input type="text" name="query" placeholder="搜索哲学概念…"></form>'
+        if query:
+            html += f'<p class="sub">搜索 "{query}" 的结果:</p>'
+            for r in results:
+                name = str(r.get('name', r.get('slug', '')))[:60]
+                title = str(r.get('title', ''))[:120]
+                html += f'<a class="card" href="/philosophy/{slug}"><div class="name">{name}</div><div class="desc">{title}</div><div style="font-size:11px;color:#6a5a4a;margin-top:4px">🔗 SEP原文</div></a>'
+            if not results:
+                html += '<p style="color:#888;text-align:center">未找到匹配结果</p>'
+        else:
+            html += '<p style="color:#888;text-align:center">输入关键词开始搜索</p>'
+        html += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
+        return html
     return jsonify({"results": results})
 
 
@@ -315,6 +668,35 @@ def philosophy():
     if os.path.isfile(sep_path):
         with open(sep_path, "r", encoding="utf-8") as f:
             sep_data = json.load(f)
+    # 浏览器访问 -> HTML 哲思列表
+    if "text/html" in request.headers.get("Accept", ""):
+        html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>哲思文库 · 莫名心小站</title><style>'
+        html += '*{margin:0;padding:0;box-sizing:border-box}'
+        html += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
+        html += 'h1{font-size:20px;margin-bottom:4px}'
+        html += '.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
+        html += '.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;text-decoration:none;color:#2c2c2c;display:block;box-shadow:0 1px 4px rgba(0,0,0,.06)}'
+        html += '.name{font-weight:600;font-size:14px}'
+        html += '.desc{color:#666;font-size:.8rem;margin-top:2px}'
+        html += '.footer{text-align:center;margin-top:20px}'
+        html += 'a{color:#4a7dff;text-decoration:none}'
+        html += 'input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:12px}'
+        html += '</style></head><body>'
+        html += '<h1>📖 哲思文库</h1>'
+        html += '<p class="sub">斯坦福哲学百科 · 102条</p>'
+        html += '<form method="get" action="/knowledge-search"><input type="text" name="query" placeholder="搜索概念…"></form>'
+        count = 0
+        for slug, entry in sorted(sep_data.items()):
+            if count >= 60:
+                if len(sep_data) > 60:
+                    html += '<p style="color:#888;text-align:center;font-size:.8rem">…还有' + str(len(sep_data)-60) + '条，搜索查看</p>'
+                break
+            name = str(entry.get('name', slug))[:60]
+            title = str(entry.get('title', ''))[:100]
+            html += f'<a class="card" href="/philosophy/{slug}"><div class="name">{name}</div><div class="desc">{title}</div></a>'
+            count += 1
+        html += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
+        return html
     # 合并本地词条
     词条 = _本地词条_加载()
     for slug, entry in 词条.items():
@@ -334,16 +716,46 @@ def philosophy():
     return jsonify(sep_data)
 
 
-@app.route("/diagnose", methods=["POST"])
+@app.route("/philosophy/<slug>")
 @login_required
-def diagnose():
-    data = request.json or {}
-    symptoms = data.get("symptoms", [])
-    tongue = data.get("tongue", "")
-    pulse = data.get("pulse", "")
-    bio = data.get("bio", {})
-    result = run_diagnosis(symptoms, tongue, pulse, bio)
-    return jsonify(result)
+def philosophy_detail(slug=""):
+    """查看单条哲思条目"""
+    sep_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sep_core.json")
+    if os.path.isfile(sep_path):
+        with open(sep_path, "r", encoding="utf-8") as f:
+            sep_data = json.load(f)
+        slug = slug.strip().lower()
+        if slug in sep_data:
+            entry = sep_data[slug]
+            name = str(entry.get("name", slug))
+            title = str(entry.get("title", ""))
+            body_zh = entry.get("body_zh", "") or entry.get("body", "") or ""
+            body_en = entry.get("body_en", "") or ""
+            body = body_zh or body_en
+            if not body:
+                body = str(entry.get("body", "") or "")
+            body = body[:10000]
+            import html as hmod
+            title_safe = hmod.escape(title)
+            name_safe = hmod.escape(name)
+            body_safe = hmod.escape(body)
+            return f"""<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{name_safe} · 哲思文库</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}}
+h1{{font-size:18px;margin-bottom:4px}}
+.sub{{color:#888;font-size:.8rem;margin-bottom:16px;word-wrap:break-word}}
+.content{{background:#fff;border-radius:12px;padding:16px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word}}
+.footer{{text-align:center;margin-top:20px;font-size:.8rem;color:#888}}
+a{{color:#4a7dff;text-decoration:none}}
+</style></head><body>
+<h1>{name_safe}</h1>
+<p class="sub">{title_safe}</p>
+<div class="content">{body_safe}</div>
+<div class="footer"><a href="https://plato.stanford.edu/entries/{slug}/" target="_blank" style="color:#2980b9">🔗 查看SEP原文</a> · <a href="/philosophy">← 哲思文库</a></div></body></html>"""
+    return "<h1>未找到</h1><p><a href='/philosophy'>← 返回</a></p>", 404
 
 
 @app.route("/notes")
@@ -382,7 +794,36 @@ def notes():
                 })
             if notes_in_cat:
                 categories[sub] = notes_in_cat
+    # 浏览器访问 -> HTML
+    if "text/html" in request.headers.get("Accept", ""):
+        h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>学习笔记 / 莫名心小站</title><style>'
+        h += '*{margin:0;padding:0;box-sizing:border-box}'
+        h += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
+        h += 'h1{font-size:20px;margin-bottom:4px}'
+        h += '.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
+        h += '.sect{margin-bottom:16px}'
+        h += '.stitle{font-weight:600;font-size:.9rem;color:#b8453a;margin-bottom:8px;padding-left:4px;border-left:3px solid #b8453a}'
+        h += '.card{background:#fff;border-radius:10px;padding:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}'
+        h += '.card a{text-decoration:none;color:#2c2c2c;display:block}'
+        h += '.card-title{font-weight:500;font-size:14px}'
+        h += '.card-meta{color:#888;font-size:.75rem;margin-top:2px}'
+        h += '.footer{text-align:center;margin-top:20px;font-size:.8rem;color:#888}'
+        h += 'a{color:#4a7dff;text-decoration:none}'
+        h += '.empty{color:#888;text-align:center;padding:40px}'
+        h += '</style></head><body>'
+        h += '<h1>📝 学习笔记</h1><p class="sub">数字中医有感</p>'
+        if not categories:
+            h += '<div class="empty">暂无笔记</div>'
+        for cat, items in categories.items():
+            h += f'<div class="sect"><div class="stitle">{cat}</div>'
+            for n in items:
+                fpath = n["file"]
+                h += f'<div class="card"><a href="/note-view/{fpath}"><div class="card-title">{n["title"]}</div><div class="card-meta">{n["date"]}</div></a></div>'
+            h += '</div>'
+        h += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
+        return h
     return jsonify({"categories": categories})
+
 
 
 @app.route("/crawled-books")
@@ -395,6 +836,89 @@ def crawled_books():
             return jsonify(json.load(f))
     return jsonify({"total": 0, "by_category": {}})
 
+
+
+
+
+@app.route("/gutenberg")
+@login_required
+def gutenberg():
+    """古登堡计划经典搜索"""
+    query = request.args.get("q", "").strip()
+    results = []
+    if query:
+        try:
+            from skills.philosophy import search_gutenberg
+            results = search_gutenberg(query)
+        except:
+            pass
+    
+    h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
+    h += '<title>古登堡经典 / 莫名心小站</title><style>'
+    h += '*{margin:0;padding:0;box-sizing:border-box}'
+    h += 'body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
+    h += 'h1{font-size:20px;margin-bottom:2px}'
+    h += '.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
+    h += 'input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:12px;box-sizing:border-box}'
+    h += '.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);text-decoration:none;color:#2c2c2c;display:block}'
+    h += '.ctitle{font-weight:600;font-size:14px}'
+    h += '.cauthor{color:#666;font-size:.8rem;margin-top:2px}'
+    h += '.clink{color:#2980b9;font-size:.75rem;margin-top:4px}'
+    h += '.footer{text-align:center;margin-top:20px;font-size:.8rem;color:#888}'
+    h += 'a{color:#4a7dff;text-decoration:none}'
+    h += '</style></head><body>'
+    h += '<h1>📚 古登堡经典</h1>'
+    h += '<p class="sub">Project Gutenberg · 免费哲学经典搜索</p>'
+    safe_q = html.escape(query)
+    h += '<form method="get" action="/gutenberg"><input type="text" name="q" placeholder="搜索作者或书名…" value="' + safe_q + '"></form>'
+    
+    if results:
+        h += '<p class="sub">找到 ' + str(len(results)) + ' 条结果</p>'
+        for r in results[:20]:
+            title = html.escape(str(r.get("title", ""))[:80])
+            author = html.escape(str(r.get("author", ""))[:40])
+            ebook_id = r.get("ebook_id", "")
+            url = f"https://www.gutenberg.org/ebooks/{ebook_id}" if ebook_id else ""
+            if url:
+                h += '<a class="card" href="' + url + '" target="_blank"><div class="ctitle">' + title + '</div><div class="cauthor">' + author + '</div><div class="clink">🔗 古登堡计划</div></a>'
+            else:
+                h += '<div class="card"><div class="ctitle">' + title + '</div><div class="cauthor">' + author + '</div></div>'
+    elif query:
+        h += '<p style="text-align:center;color:#888">未找到相关结果</p>'
+    
+    h += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
+    return h
+
+
+@app.route("/note-view/<path:filepath>")
+@login_required
+def note_view(filepath=""):
+    """查看单篇笔记"""
+    from urllib.parse import unquote
+    import html as hmod
+    fp = unquote(filepath)
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "数字中医有感")
+    full = os.path.join(base, fp)
+    if os.path.isfile(full):
+        with open(full, "r", encoding="utf-8") as f:
+            md = f.read()
+        lines = md.split("\n")
+        title = hmod.escape(lines[0].lstrip("# ")) if lines else "笔记"
+        body = hmod.escape("\n".join(lines[1:]).strip())
+        return f"""<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{title}</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}}
+h1{{font-size:20px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid #e0d8d2}}
+.content{{font-size:14px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word}}
+.footer{{text-align:center;margin-top:24px;font-size:.8rem;color:#888}}
+a{{color:#4a7dff;text-decoration:none}}
+</style></head><body><h1>{title}</h1>
+<div class="content">{body}</div>
+<div class="footer"><a href="/notes">← 学习笔记</a></div></body></html>"""
+    return "<h1>未找到</h1><p><a href='/notes'>← 返回</a></p>", 404
 
 # ── 简单页面路由（不走 catch-all） ──
 
@@ -418,9 +942,26 @@ def skills():
     return jsonify({}), 200
 
 
-@app.route("/upload")
+@app.route("/upload", methods=["GET", "POST"])
 @login_required
 def upload():
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        filename = data.get("filename", "")
+        content_b64 = data.get("content", "")
+        if not filename or not content_b64:
+            return jsonify({"error": "需要 filename 和 content"}), 400
+        import base64
+        safe_name = os.path.basename(filename)
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+        os.makedirs(save_dir, exist_ok=True)
+        filepath = os.path.join(save_dir, safe_name)
+        decoded = base64.b64decode(content_b64)
+        with open(filepath, "wb") as f:
+            f.write(decoded)
+        size_kb = len(decoded) / 1024
+        return jsonify({"message": f"{safe_name} 已保存（{size_kb:.1f} KB）", "path": filepath, "size": len(decoded)})
+    # GET: 显示上传页面
     """上传页面"""
     return '''<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -440,6 +981,7 @@ button{width:100%;padding:14px;background:#d86050;color:white;border:none;border
 <div id="result"></div>
 <script>
 async function uploadAll(){const r=document.getElementById("result");const files=document.getElementById("fileInput").files;if(!files.length){r.textContent="请先选择文件";return;}r.textContent="上传中 0/"+files.length+"...";let ok=0,err=0;for(let i=0;i<files.length;i++){const f=files[i];r.textContent="上传中 "+i+"/"+files.length+": "+f.name;try{const b64=await new Promise((res,rej)=>{const r2=new FileReader();r2.onload=e=>res(e.target.result.split(",")[1]);r2.onerror=rej;r2.readAsDataURL(f)});const d=await(await fetch("/upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:f.name,content:b64})})).json();if(d.error)err++;else ok++;}catch(e){err++}}r.textContent="✅ 完成: "+ok+" 成功, "+err+" 失败";}
+
 </script></body></html>'''
 
 
@@ -452,19 +994,60 @@ def classic_view(filepath=""):
     """查看经典原文（默认繁体，单栏可切换简体）"""
     import re, html as hmod
     from urllib.parse import unquote
+    import glob
     
     page = request.args.get("page", 1, type=int)
     page = max(1, page)
     file_rel = unquote(filepath)
-    base = os.path.expanduser("~/.openclaw/workspace/xin_sources")
+    base = os.path.expanduser("~/.openclaw/workspace/xin_sources/cleaned")
     fp = os.path.join(base, file_rel)
     
+    # 根路径 -> 显示古籍列表
+    if not file_rel or file_rel == "/":
+        html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>经典古籍 / 莫名心小站</title><style>'
+        html += '*{margin:0;padding:0;box-sizing:border-box}'
+        html += 'body{font-family:system-ui,sans-serif;background:#16161a;color:#d8d0c0;padding:16px;max-width:640px;margin:0 auto}'
+        html += 'h1{font-size:20px;margin-bottom:4px}'
+        html += '.sub{color:#8a7a6a;font-size:.8rem;margin-bottom:16px}'
+        html += '.card{background:#1e1e24;border-radius:12px;padding:14px;margin-bottom:10px;text-decoration:none;color:#d8d0c0;display:block}'
+        html += '.card:hover{background:#2a2a30}'
+        html += '.card-title{font-weight:600;font-size:14px}'
+        html += '.card-desc{color:#6a5a4a;font-size:.75rem;margin-top:2px}'
+        html += '.footer{text-align:center;margin-top:20px;font-size:.8rem;color:#6a5a4a}'
+        html += 'a{color:#b0a898;text-decoration:none}'
+        html += '</style></head><body>'
+        html += '<h1>📜 经典古籍</h1><p class="sub">素问50卷 / 灵枢 / 神农本草经</p>'
+        dirs = sorted([d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))])
+        for d in dirs:
+            md_files = [f for f in glob.glob(os.path.join(base, d, "*.md")) if "_______copyright" not in f and "_______privacy" not in f]
+            if md_files:
+                html += f'<a class="card" href="/classic-view/{d}"><div class="card-title">{d}</div><div class="card-desc">{len(md_files)} 篇</div></a>'
+        html += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
+        return html
+    
     if not (os.path.isfile(fp) and fp.startswith(base)):
-        page404 = """<!DOCTYPE html><html><meta charset="UTF-8"><title>未找到</title>
-<style>body{background:#16161a;color:#d8d0c0;padding:40px;font-family:sans-serif;text-align:center;}
-h1{font-size:60px;margin:0;color:#3a2a1a;}p{color:#6a5a4a;}a{color:#d8d0c0;}</style>
-<body><h1>📖</h1><p>文档未找到，可能已被移动或名称发生了变化。</p>
-<p><a href="/">← 返回小站</a></p></body></html>"""
+        # 路径是目录 -> 列出文件
+        if os.path.isdir(fp):
+            html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>' + file_rel + ' / 经典古籍</title><style>'
+            html += '*{margin:0;padding:0;box-sizing:border-box}'
+            html += 'body{font-family:system-ui,sans-serif;background:#16161a;color:#d8d0c0;padding:16px;max-width:640px;margin:0 auto}'
+            html += 'h1{font-size:18px;margin-bottom:12px}'
+            html += '.card{background:#1e1e24;border-radius:10px;padding:12px;margin-bottom:8px;text-decoration:none;color:#d8d0c0;display:block}'
+            html += '.card-title{font-size:14px;font-weight:500}'
+            html += '.footer{text-align:center;margin-top:20px;font-size:.8rem;color:#6a5a4a}'
+            html += 'a{color:#b0a898;text-decoration:none}'
+            html += '</style></head><body>'
+            html += f'<h1>📜 {file_rel}</h1>'
+            files = sorted([f for f in os.listdir(fp) if f.endswith('.md') and '_______copyright' not in f and '_______priv' not in f])
+            for f in files:
+                html += f'<a class="card" href="/classic-view/{file_rel}/{f}"><div class="card-title">{f.replace(".md","")}</div></a>'
+            html += '<div class="footer"><a href="/classic-view/">← 上级</a></div></body></html>'
+            return html
+        page404 = '<!DOCTYPE html><html><meta charset="UTF-8"><title>未找到</title>'
+        page404 += '<style>body{background:#16161a;color:#d8d0c0;padding:40px;font-family:sans-serif;text-align:center;}'
+        page404 += 'h1{font-size:60px;margin:0;color:#3a2a1a;}p{color:#6a5a4a;}a{color:#d8d0c0;}</style>'
+        page404 += '<body><h1>📖</h1><p>文档未找到，可能已被移动或名称发生了变化。</p>'
+        page404 += '<p><a href="/">← 返回小站</a></p></body></html>'
         return page404, 404
     
     with open(fp, "r", encoding="utf-8") as f:
@@ -545,100 +1128,86 @@ function switchLang(){{
 @app.route("/crawled-view/<path:filepath>")
 @login_required
 def crawled_view(filepath=""):
-    """查看已爬取的古籍（默认繁体，单栏可切换简体）"""
     from urllib.parse import unquote
-    import glob
+    import fnmatch
     file_rel = unquote(filepath)
     clean_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "xin_sources", "cleaned")
+    if not file_rel or file_rel == "/":
+        # 按目录分组收集文件
+        groups = {}
+        for root, dirs, files in os.walk(clean_dir):
+            for f in files:
+                if not f.endswith(".md") or f.endswith(".trad.md"):
+                    continue
+                if "_______copyright" in f or "_______privacy" in f:
+                    continue
+                cat = os.path.basename(root)
+                if cat not in groups:
+                    groups[cat] = []
+                groups[cat].append((os.path.join(root, f), f.replace(".md", "")))
+        for cat in groups:
+            groups[cat].sort(key=lambda x: x[1])
+        
+        # 名称清洗
+        def clean_name(n):
+            n = n.replace("笈_", "").replace("_", " ").strip()
+            return n[:40]
+        
+        html = '<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1.0">'
+        html += '<title>求知虫 / 莫名心小站</title><style>'
+        html += '*{margin:0;padding:0;box-sizing:border-box}'
+        html += 'body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#16161a;color:#d8d0c0;padding:12px;max-width:640px;margin:0 auto}'
+        html += 'h1{font-size:22px;margin-bottom:2px}'
+        html += '.sub{font-size:13px;color:#6a5a4a;margin-bottom:16px}'
+        html += '.section{margin-bottom:20px}'
+        html += '.stitle{font-size:14px;font-weight:600;color:#8a7a6a;padding-left:4px;border-left:3px solid #b8453a;margin-bottom:8px}'
+        html += '.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}'
+        html += '@media(max-width:480px){.grid{grid-template-columns:1fr}}'
+        html += '.card{background:#1e1e24;border-radius:14px;padding:14px;text-decoration:none;color:#d8d0c0;display:block;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}'
+        html += '.card:active{background:#2a2a30;transform:scale(0.97)}'
+        html += '.card-title{font-size:14px;font-weight:500;line-height:1.4;word-break:break-all}'
+        html += '.footer{text-align:center;padding:20px 0 10px;font-size:13px;color:#6a5a4a}'
+        html += 'a{color:#b0a898;text-decoration:none}'
+        html += '</style></head><body>'
+        html += '<h1>🕳️ 求知虫</h1><p class="sub">古籍数据库 · 点击查看详情</p>'
+        
+        for cat in sorted(groups.keys()):
+            items = groups[cat]
+            html += '<div class="section"><div class="stitle">' + cat + '</div><div class="grid">'
+            for fp, nm in items:
+                rel = os.path.relpath(fp, clean_dir)
+                cname = clean_name(nm)
+                html += '<a class="card" href="/crawled-view/' + rel + '"><div class="card-title">' + cname + '</div></a>'
+            html += '</div></div>'
+        
+        html += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
+        return html
     page = request.args.get("page", 1, type=int)
-    page = max(1, page)
-    
+    if page < 1:
+        page = 1
     found = None
-    for f in glob.glob(os.path.join(clean_dir, "**", "*.md"), recursive=True):
-        if file_rel in f or os.path.basename(f) == file_rel:
-            found = f
+    for root, dirs, files in os.walk(clean_dir):
+        for f in files:
+            if f.endswith(".md"):
+                fp = os.path.join(root, f)
+                if file_rel in fp or os.path.basename(fp) == file_rel:
+                    found = fp
+                    break
+        if found:
             break
-    
-    if not (found and os.path.isfile(found)):
+    if not found or not os.path.isfile(found):
         return "<h1>未找到</h1>", 404
-    
-    with open(found, "r", encoding="utf-8") as f:
-        raw = f.read()
-    body_start = raw.find("\n---\n", raw.find("---")) if raw.startswith("---") else 0
-    body = raw[body_start + 5:] if body_start > 0 else raw
-    
+    with open(found, encoding="utf-8") as vf:
+        raw = vf.read()
+    body = raw.split("---", 2)[-1] if raw.startswith("---") else raw
     ppc = 5000
     total = max(1, (len(body) + ppc - 1) // ppc)
-    page = min(page, total)
-    start = (page - 1) * ppc
-    end = min(start + ppc, len(body))
-    chunk_fan = body[start:end]
-    fan = html.escape(chunk_fan)
-    
-    # 找 trad 版本
-    simp = fan
-    trad_rel = file_rel.replace(".md", ".trad.md")
-    for tf in glob.glob(os.path.join(clean_dir, "**", "*.trad.md"), recursive=True):
-        if os.path.basename(tf) == trad_rel:
-            with open(tf, "r", encoding="utf-8") as vf:
-                raw2 = vf.read()
-            bs2 = raw2.find("\n---\n", raw2.find("---")) if raw2.startswith("---") else 0
-            body2 = raw2[bs2 + 5:] if bs2 > 0 else raw2
-            s2 = (page - 1) * ppc
-            e2 = min(s2 + ppc, len(body2))
-            simp = html.escape(body2[s2:e2])
-            break
-    
-    basename = html.escape(os.path.basename(file_rel))
-    left_arrow = """<a href="?page=""" + str(page-1) + """">‹ 上一页</a>""" if page > 1 else """<span></span>"""
-    right_arrow = """<a href="?page=""" + str(page+1) + """">下一页 ›</a>""" if page < total else """<span></span>"""
-    
-    return f'''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{basename} 第{page}页</title>
-<style>
-*{{margin:0;padding:0;box-sizing:border-box;}}
-body{{background:#16161a;color:#d8d0c0;font-family:"Noto Sans SC","PingFang SC",sans-serif;padding:0;}}
-.nav{{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #2a2a30;font-size:14px;flex-wrap:wrap;}}
-.nav a{{color:#b0a898;text-decoration:none;white-space:nowrap;}}
-.nav .title{{color:#5a5a5a;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
-.toggle{{padding:6px 14px;border-radius:8px;border:1px solid #3a3a40;background:#2a2a30;color:#ece8dc;font-size:13px;cursor:pointer;white-space:nowrap;transition:all 0.2s;}}
-.toggle:hover{{background:#3a3a40;}}
-.lang-tag{{font-size:11px;color:#6a5a4a;padding:4px 10px;border:1px solid #2a2a30;border-radius:6px;display:inline-block;}}
-.content{{padding:20px;max-width:720px;margin:0 auto;font-size:15px;line-height:2;white-space:pre-wrap;word-wrap:break-word;}}
-.pager{{display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 16px;border-top:1px solid #2a2a30;font-size:14px;}}
-.pager a{{color:#b0a898;text-decoration:none;padding:6px 14px;border:1px solid #3a3a40;border-radius:8px;font-size:13px;}}
-.pager a:hover{{background:#2a2a30;}}
-.pager span{{color:#5a5a5a;font-size:13px;}}
-@media(max-width:480px){{.nav{{font-size:13px;padding:10px 12px;}}.content{{padding:14px;font-size:14px;}}.pager{{gap:8px;font-size:13px;}}}}
-</style></head><body>
-<div class="nav">
-  <a href="/">←</a>
-  <span class="title">{basename}</span>
-  <span class="lang-tag" id="clangLabel">繁体</span>
-  <button class="toggle" onclick="switchCrawledLang()" id="clangBtn">切换简体</button>
-</div>
-<div id="cfan" class="content">{fan}</div>
-<div id="cj" class="content" style="display:none">{simp}</div>
-<div class="pager">
-  {left_arrow}
-  <span>第 {page} / {total} 页</span>
-  {right_arrow}
-</div>
-<script>
-var isFan = true;
-function switchCrawledLang(){{
-  isFan = !isFan;
-  document.getElementById('cfan').style.display = isFan ? 'block' : 'none';
-  document.getElementById('cj').style.display = isFan ? 'none' : 'block';
-  document.getElementById('clangLabel').textContent = isFan ? '繁体' : '简体';
-  document.getElementById('clangBtn').textContent = isFan ? '切换简体' : '显示繁体';
-}}
-</script>
-</body></html>'''
-
-
-# ── 兜底路由（只有上面没匹配到的才到这里） ──
+    if page > total:
+        page = total
+    s = (page - 1) * ppc
+    chunk = body[s:s+ppc]
+    bn = os.path.basename(file_rel)
+    return "<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><title>" + bn + "</title>" +         "<style>body{background:#16161a;color:#d8d0c0;padding:20px;font-family:sans-serif;line-height:2;white-space:pre-wrap;max-width:720px;margin:0 auto}" +         "a{color:#b0a898;text-decoration:none}.nav{padding:10px 0;border-bottom:1px solid #333}" +         ".pager{text-align:center;padding:14px}</style><body><div class=nav><a href=/crawled-view/>返回</a></div>" +         "<div>" + html.escape(chunk) + "</div><div class=pager>第" + str(page) + "/" + str(total) + "页</div></body></html>" 
 @app.route("/daogui")
 @login_required
 def daogui():
@@ -660,12 +1229,537 @@ def forge_destiny():
     return "<h1>锻因缘页面未找到</h1>", 404
 
 
+@app.route("/daogui3")
+@login_required
+def daogui3():
+    """道归3.0 · 未来展望"""
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    pages = [
+        ("道归体系全貌_v3.0_优化版", "🏛️ 体系全貌"),
+        ("新兴学科预测_优化版", "🔮 新兴学科"),
+        ("灵魂稳定学（第九支柱）_优化版", "💎 灵魂稳定学"),
+    ]
+    html = '''<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>道归3.0 · 未来展望</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:20px;line-height:1.7;background:#faf8f5;color:#1a1a2e}
+h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px}
+.nav a{display:inline-block;margin:4px;padding:8px 16px;background:#1a1a2e;color:#faf8f5;text-decoration:none;border-radius:6px}
+.nav a:hover{background:#8b0000}
+.content{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-top:20px;white-space:pre-wrap}
+hr{border:none;border-top:1px solid #ddd;margin:24px 0}
+blockquote{border-left:3px solid #8b0000;margin:16px 0;padding:8px 16px;background:#fff5f5;border-radius:4px}
+</style></head><body>
+'''
+    html += '<h1>🌙 道归3.0 · 未来展望</h1>\n<div class="nav">'
+    for slug, label in pages:
+        html += f'<a href="?p={slug}">{label}</a> '
+    html += '</div>\n'
+    
+    p = request.args.get('p', '道归体系全貌_v3.0_优化版')
+    found = False
+    for slug, label in pages:
+        if p == slug:
+            filepath = os.path.join(BASE, '道归', f'{slug}.md')
+            if os.path.isfile(filepath):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # Remove YAML-like header
+                import re
+                content = re.sub(r'^---.*?---', '', content, flags=re.DOTALL)
+                content = content.strip()
+                html += f'<h2>{label}</h2>\n<div class="content">{content}</div>'
+                found = True
+                break
+    if not found:
+        html += '<p>页面未找到</p>'
+    
+    html += '</body></html>'
+    return html
+
+
 # ── 启动 ──
+
+def _error_page(code, msg):
+    return f'<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><title>{code}</title><style>body{{font-family:system-ui,sans-serif;background:#16161a;color:#ece8dc;display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;text-align:center;padding:20px}}a{{color:#4a7dff}}</style></head><body><h1>{code}</h1><p>{msg}</p><a href=/>返回首页</a></body></html>', code
+
+@app.errorhandler(500)
+def handle_500(e):
+    return _error_page(500, '服务器内部错误')
+
+@app.errorhandler(404)
+def handle_404(e):
+    return _error_page(404, '页面未找到')
+
+
+
+@app.route("/extensions")
+@login_required
+def extensions():
+    """扩展管理 —— 灵感来自 Firefox about:addons"""
+    html = '''<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>扩展管理 · 莫名心小站</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;max-width:900px;margin:0 auto;padding:20px;background:#f5f5f5;color:#222}
+h1{font-size:1.5rem;margin-bottom:4px}
+.sub{color:#666;font-size:.85rem;margin-bottom:20px}
+.nav-bar{display:flex;gap:4px;margin-bottom:24px;border-bottom:2px solid #ddd;padding-bottom:0}
+.nav-bar a{padding:8px 16px;text-decoration:none;color:#555;font-size:.9rem;border-radius:6px 6px 0 0}
+.nav-bar a.active{background:#fff;color:#222;font-weight:600;border:1px solid #ddd;border-bottom-color:#fff;margin-bottom:-2px}
+.ext-list{display:flex;flex-direction:column;gap:12px}
+.ext-card{background:#fff;border-radius:10px;padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:.2s}
+.ext-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.ext-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.ext-info{flex:1}
+.ext-name{font-weight:600;font-size:.95rem}
+.ext-desc{color:#666;font-size:.82rem;margin-top:2px}
+.ext-toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+.ext-toggle input{opacity:0;width:0;height:0}
+.ext-toggle .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:12px;transition:.3s}
+.ext-toggle .slider::before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+.ext-toggle input:checked+.slider{background:#4a7dff}
+.ext-toggle input:checked+.slider::before{transform:translateX(20px)}
+.ext-more{color:#999;cursor:pointer;padding:4px;font-size:1.1rem}
+.search-bar{display:flex;gap:8px;margin-bottom:20px}
+.search-bar input{flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:.9rem;outline:none}
+.search-bar input:focus{border-color:#4a7dff}
+.empty-state{text-align:center;padding:60px 20px;color:#999}
+</style></head><body>
+<h1>🧩 扩展管理</h1>
+<p class="sub">管理小站的功能扩展 — 灵感来自 Firefox about:addons · 莫名心小站</p>
+
+<div class="nav-bar">
+<a href="#" class="active">已启用</a>
+<a href="#">推荐</a>
+<a href="#">主题</a>
+</div>
+
+<div class="search-bar">
+<input type="text" placeholder="搜索扩展…" oninput="filterExts(this.value)">
+</div>
+
+<div class="ext-list" id="extList"></div>
+
+<p style="text-align:center;margin-top:24px;color:#999;font-size:.8rem">
+<a href="/" style="color:#4a7dff;text-decoration:none">← 返回首页</a>
+</p>
+
+<script>
+const EXTENSIONS = [
+    {
+        icon: "🎤", name: "文本语音朗读", desc: "朗读SEP文库、哲学报告与道归文档。支持40+语言，一键播放。",
+        on: true, color: "#e74c3c"
+    },
+    {
+        icon: "🎨", name: "Stylus 主题管理", desc: "小站外观自定义。切换白天/夜间模式、字号、字体。",
+        on: true, color: "#27ae60"
+    },
+    {
+        icon: "📷", name: "以图搜哲学", desc: "上传图片，自动搜索相关哲思条目与概念。",
+        on: false, color: "#8e44ad"
+    },
+    {
+        icon: "🔍", name: "哲思增强搜索", desc: "SEP 102条全文检索 + 模糊匹配 + AI 推荐。",
+        on: true, color: "#2980b9"
+    },
+    {
+        icon: "📜", name: "古籍对照", desc: "素问50卷、灵枢、神农本草经对照阅读。",
+        on: true, color: "#d35400"
+    },
+    {
+        icon: "🧮", name: "五运六气计算器", desc: "客主加临六步推算、食疗评价、时位分析。",
+        on: true, color: "#16a085"
+    },
+    {
+        icon: "🤖", name: "AI 问答", desc: "DeepSeek V4 Flash 驱动，上下文1M tokens。",
+        on: true, color: "#2c3e50"
+    },
+    {
+        icon: "📊", name: "八字排盘", desc: "fortune-skill 引擎，排大运、起运、十神。",
+        on: true, color: "#c0392b"
+    },
+    {
+        icon: "🔮", name: "小六壬起卦", desc: "道传体系，数字/时间/宫位三种起卦法。",
+        on: true, color: "#7f8c8d"
+    },
+    {
+        icon: "🗂️", name: "道归3.0文库", desc: "完整理论体系 + 宇宙学假说 + 哲学吞噬报告。",
+        on: true, color: "#8b0000"
+    },
+];
+
+function renderExts(list) {
+    const el = document.getElementById('extList');
+    el.innerHTML = list.map(e => `
+        <div class="ext-card">
+            <div class="ext-icon" style="background:${e.color}22;color:${e.color}">${e.icon}</div>
+            <div class="ext-info">
+                <div class="ext-name">${e.name}</div>
+                <div class="ext-desc">${e.desc}</div>
+            </div>
+            <label class="ext-toggle">
+                <input type="checkbox" ${e.on ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+            <span class="ext-more">⋯</span>
+        </div>
+    `).join('');
+}
+
+function filterExts(q) {
+    const f = EXTENSIONS.filter(e => e.name.includes(q) || e.desc.includes(q));
+    renderExts(f);
+}
+
+renderExts(EXTENSIONS);
+</script>
+</body></html>'''
+    return html
+
+@app.route("/api/tts", methods=["POST"])
+@login_required
+def api_tts():
+    """语音朗读接口"""
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "").strip()
+    lang = data.get("lang", "zh-CN")
+    result = _tts_endpoint(text, lang)
+    return jsonify(result)
+
+
+_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">七套术数引擎 · 输入生达即可起盘</p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><input type=\"date\" name=\"bdate\" value=\"2026-07-28\" required></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-bottom:14px">
+<label>模式</label>
+<div style="display:flex;gap:10px;margin-top:4px">
+<label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
+<input type="radio" name="dual" value="single" checked onclick="var p=document.getElementById('person2');if(p)p.style.display='none'"> 单人
+</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
+<input type="radio" name="dual" value="double" onclick="var p=document.getElementById('person2');if(p)p.style.display='block'"> 双人
+</label>
+</div>
+</div>
+<div id="person2" style="display:none;margin-bottom:14px;padding:14px;background:#f8f4f0;border-radius:12px">
+<div style="font-size:13px;font-weight:600;color:#b8453a;margin-bottom:10px">🧑‍🧑 第二人</div>
+<div style="display:flex;gap:8px;margin-bottom:10px">
+<div style="flex:1">
+<label style="font-size:12px">日期</label>
+<input type="date" name="bdate2" value="2026-07-28" required>
+</div>
+<div style="flex:none;width:100px">
+<label style="font-size:12px">时间</label>
+<input type="time" name="btime2" value="12:00">
+</div>
+</div>
+<div>
+<label style="font-size:12px">性别</label>
+<div style="display:flex;gap:10px;margin-top:4px">
+<label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer"><input type="radio" name="sex2" value="1" checked> 男</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer"><input type="radio" name="sex2" value="0"> 女</label>
+</div>
+</div>
+<div style="margin-top:8px">
+<label style="font-size:12px">关系类型</label>
+<select name="relation" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+<option value="marriage">夫妻 / 合婚</option>
+<option value="love">男女情侣</option>
+<option value="friend">朋友 / 合伙</option>
+<option value="brother">兄弟</option>
+<option value="sister">姐妹</option>
+<option value="brosis">兄妹 / 姐弟</option>
+<option value="colleague">同事 / 上下级</option>
+</select>
+</div>
+</div>
+
+<div style="margin-bottom:14px">
+<label>性别</label>
+<div style="display:flex;gap:10px;margin-top:4px">
+<label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
+<input type="radio" name="sex" value="1" checked> 男
+</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
+<input type="radio" name="sex" value="0"> 女
+</label>
+</div>
+</div>
+<label>术数</label>\n<select name=\"mode\">\n<option value=\"bazi\">八字 — 子平八字排盘</option>\n<option value=\"ziwei\">紫微斗数 — 紫微课盘</option>\n<option value=\"qimen\">奇门道甲 — 时家奇门盘</option>\n<option value=\"liuren\">大六壬 — 六壬课经</option>\n<option value=\"meihua\">梅花易数 — 梅花起卦</option><option value="jinkoujue">金口诀 — 金口诀课经</option><option value="wuyunliuqi">五运六气 — 岁运客主加临</option><option value="xiaoliuren">小六壬 — 道传起卦</option>\n<option value=\"all\">全量 — 所有术数</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n</body></html>"""
+
+@app.route("/steward", methods=["GET", "POST"])
+@login_required
+def steward():
+    """赛博玄学管家"""
+    import subprocess as _sp
+    steward_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                  "skills", "metaphysics-steward", "scripts", "steward.py")
+    
+    def esc(t):
+        return html.escape(str(t)[:5000])
+    
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form or {}
+        birthdate = data.get("birthdate", "") or (data.get("bdate","") + " " + (data.get("btime","") or "12:00")).strip()
+        mode = data.get("mode", "bazi")
+        is_form = request.content_type and "form" in request.content_type
+        
+        try:
+            dual = data.get("dual", "single")
+            relation = data.get("relation", "love")
+            
+            if mode == "wuyunliuqi":
+                try:
+                    from 五运六气 import 推算 as _wuyun
+                    wu = _wuyun(birthdate[:10] if len(birthdate) >= 10 else None)
+                    raw = json.dumps(wu, ensure_ascii=False, indent=2)[:6000]
+                except Exception as _we:
+                    raw = f"五运六气计算错误: {_we}"
+            elif mode == "xiaoliuren":
+                try:
+                    parts = birthdate.replace("-"," ").replace(":"," ").split()
+                    if len(parts) >= 4:
+                        xl_args = [str(int(parts[1])), str(int(parts[2])), str(int(parts[3]))]
+                        xl_r = _sp.run(["xiaoliuren", "--time"] + xl_args, capture_output=True, text=True, timeout=10)
+                    else:
+                        xl_r = _sp.run(["xiaoliuren", "3", "5", "7"], capture_output=True, text=True, timeout=10)
+                    raw = (xl_r.stdout or "")[:5000] or (xl_r.stderr or "")[:2000] or "暂无输出"
+                except Exception as _xe:
+                    raw = f"小六壬调用错误: {_xe}"
+            elif dual == "double":
+                # 双人模式：算两个人的盘
+                bd2 = (data.get("bdate2","") + " " + (data.get("btime2","") or "12:00")).strip()
+                sex2 = data.get("sex2", "1")
+                raw_p1 = ""
+                raw_p2 = ""
+                try:
+                    r1 = _sp.run(["python3", steward_script, "--birthdate", birthdate, "--sex", data.get("sex","1"), "--mode", mode], capture_output=True, text=True, timeout=20)
+                    raw_p1 = (r1.stdout or "")[:5000]
+                except:
+                    raw_p1 = f"第一人排盘错误"
+                try:
+                    r2 = _sp.run(["python3", steward_script, "--birthdate", bd2, "--sex", sex2, "--mode", mode], capture_output=True, text=True, timeout=20)
+                    raw_p2 = (r2.stdout or "")[:5000]
+                except:
+                    raw_p2 = f"第二人排盘错误"
+                raw = f"第一人：\n{raw_p1}\n\n第二人：\n{raw_p2}"
+            else:
+                r = _sp.run(["python3", steward_script,
+                            "--birthdate", birthdate,
+                            "--sex", data.get("sex", "1"),
+                            "--mode", mode],
+                           capture_output=True, text=True, timeout=20)
+                raw = (r.stdout or "")[:6000]
+                if not raw:
+                    raw = (r.stderr or "")[:2000] or "暂无输出"
+            
+            # AI \u89e3\u8bfb
+            interpretation = ""
+            try:
+                import urllib.request as _ur
+                import json as _jm
+                _ds_key = "sk-ccb1ffae67ba4f46a9dcad04302243d9"
+                if _ds_key:
+                    p = _jm.dumps({
+                        "model": "deepseek-chat",
+                        "messages": [
+                            {"role": "system", "content": "你是一位玄学命理师。根据用户提供的排盘数据做解读。单人模式：提炼3-5条要点，通俗易懂。双人模式：分析两人五行匹配度、性格互补性，结合关系类型给出具体建议。语气平和理性，不超过500字。"},
+                            {"role": "user", "content": f"{'双人合盘(' + relation + ')' if dual == 'double' else '这是'} {mode}排盘结果：\n{raw[:10000]}"}
+                        ],
+                        "max_tokens": 800
+                    }).encode()
+                    req = _ur.Request("https://api.deepseek.com/chat/completions",
+                                     data=p,
+                                     headers={"Content-Type": "application/json",
+                                              "Authorization": "Bearer sk-ccb1ffae67ba4f46a9dcad04302243d9"})
+                    resp = _ur.urlopen(req, timeout=20).read()
+                    interpretation = _jm.loads(resp).get("choices", [{}])[0].get("message", {}).get("content", "")
+            except:
+                pass
+                pass
+            
+            # \u6784\u5efa\u7ed3\u679c\u9875\u9762
+            def _html():
+                h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
+                h += '<title>\u7384\u5b66\u7ba1\u5bb6 / ' + esc(mode) + '</title>'
+                h += '<style>*{margin:0;padding:0;box-sizing:border-box}'
+                h += 'body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
+                h += 'h1{font-size:20px;margin-bottom:2px}.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
+                h += '.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}'
+                h += '.ctitle{font-size:14px;font-weight:600;color:#b8453a;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f0ebe6}'
+                h += '.intro{font-size:15px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word}'
+                h += '.raw-box{font-size:12px;font-family:monospace;color:#555;white-space:pre-wrap;word-wrap:break-word}'
+                h += '.tog{font-size:12px;color:#4a7dff;cursor:pointer;text-align:center;margin:4px auto;display:block}'
+                h += '.btn{display:block;padding:12px;background:#b8453a;color:#fff;border-radius:10px;text-align:center;text-decoration:none}'
+                h += '.footer{text-align:center;margin-top:14px;color:#888;font-size:.8rem}'
+                h += 'a{color:#4a7dff;text-decoration:none}'
+                h += '</style></head><body>'
+                h += '<h1>\U0001f9d9 ' + esc(mode) + '</h1>'
+                h += '<p class="sub">' + esc(birthdate) + '</p>'
+                if interpretation:
+                    h += '<div class="card"><div class="ctitle">\U0001f4ac \u89e3\u8bfb</div><div class="intro">' + esc(interpretation) + '</div></div>'
+                else:
+                    h += '<div class="card"><div class="ctitle">\U0001f4cb \u6392\u76d8\u6570\u636e</div><div class="intro">' + esc(raw[:2000]) + '</div></div>'
+                h += '<span class="tog" onclick="var r=document.getElementById(\'r\');r.style.display=r.style.display==\'none\'?\'block\':\'none\'">\U0001f50d \u67e5\u770b\u539f\u59cb\u6570\u636e</span>'
+                h += '<div id="r" class="card" style="display:none"><div class="raw-box">' + esc(raw[:5000]) + '</div></div>'
+                h += '<a class="btn" href="/steward">\u518d\u7b97\u4e00\u6b21</a>'
+                h += '<div class="footer"><a href="/tools">\u2190 \u5de5\u5177\u53f0</a></div></body></html>'
+                return h
+            
+            if is_form:
+                return _html()
+            return jsonify({"success": True, "output": raw, "interpretation": interpretation})
+        except Exception as e:
+            err = str(e)
+            if is_form:
+                h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>\u7384\u5b66\u7ba1\u5bb6 / \u9519\u8bef</title>'
+                h += '<style>*{margin:0;padding:0;box-sizing:border-box}'
+                h += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
+                h += 'h1{font-size:18px;margin-bottom:12px}'
+                h += '.error{background:#fef2f0;color:#b8453a;padding:14px;border-radius:10px;font-size:14px}'
+                h += '.btn{display:block;padding:12px;background:#4a7dff;color:#fff;border-radius:10px;text-align:center;text-decoration:none;margin-top:16px}'
+                h += 'a{color:#4a7dff;text-decoration:none}'
+                h += '</style></head><body>'
+                h += '<h1>\U0001f9d9 \u9519\u8bef</h1>'
+                h += '<div class="error">' + html.escape(err) + '</div>'
+                h += '<a class="btn" href="/steward">\u91cd\u8bd5</a>'
+                h += '<div class="footer"><a href="/tools">\u2190 \u5de5\u5177\u53f0</a></div></body></html>'
+                return h
+            return jsonify({"success": False, "error": err}), 500
+    
+    return _STEWARD_HTML
+@app.route("/tools")
+@login_required
+def tools():
+    """工具台 · 移动端适配"""
+    return '''<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>工具台 · 莫名心小站</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;color:#222;padding:16px;max-width:100%;margin:0 auto}
+h1{font-size:1.3rem;margin-bottom:4px}
+.sub{color:#666;font-size:.82rem;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:480px){.grid{grid-template-columns:1fr}}
+.card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-decoration:none;color:#222;transition:.2s;display:flex;flex-direction:column;align-items:center;text-align:center}
+.card:hover{box-shadow:0 3px 12px rgba(0,0,0,.12);transform:translateY(-1px)}
+.card-icon{font-size:2rem;margin-bottom:8px}
+.card-name{font-weight:600;font-size:.95rem;margin-bottom:4px}
+.card-desc{color:#888;font-size:.78rem;line-height:1.4}
+.card .badge{font-size:.7rem;padding:2px 8px;border-radius:10px;margin-top:6px}
+.badge-new{background:#4a7dff22;color:#4a7dff}
+.badge-ok{background:#27ae6022;color:#27ae60}
+.footer{text-align:center;color:#999;font-size:.78rem;margin-top:24px}
+.footer a{color:#4a7dff;text-decoration:none}
+</style></head><body>
+<h1>🧩 莫名心·工具台</h1>
+<p class="sub">小站全部工具 — 移动端适配</p>
+
+<div class="grid">
+
+<a href="/" class="card">
+<div class="card-icon">🏠</div>
+<div class="card-name">首页</div>
+<div class="card-desc">辨证食疗 · 中医科普</div>
+</a>
+
+<a href="/extensions" class="card">
+<div class="card-icon">🧩</div>
+<div class="card-name">扩展管理</div>
+<div class="card-desc">启停功能开关</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/yunqi" class="card">
+<div class="card-icon">🌀</div>
+<div class="card-name">五运六气</div>
+<div class="card-desc">岁运·六气·时位推算</div>
+</a>
+
+<a href="/yunqi-eval" class="card">
+<div class="card-icon">🥣</div>
+<div class="card-name">食疗评价</div>
+<div class="card-desc">五维评分·膳食方案</div>
+</a>
+
+<a href="/philosophy" class="card">
+<div class="card-icon">📖</div>
+<div class="card-name">哲思文库</div>
+<div class="card-desc">102条SEP全文检索</div>
+</a>
+
+<a href="/philosophy-fetch" class="card">
+<div class="card-icon">🌐</div>
+<div class="card-name">在线哲思</div>
+<div class="card-desc">抓取新SEP条目</div>
+</a>
+
+<a href="/daogui3" class="card">
+<div class="card-icon">🏛️</div>
+<div class="card-name">道归3.0</div>
+<div class="card-desc">体系全貌·新兴学科</div>
+</a>
+
+<a href="/steward" class="card">
+<div class="card-icon">🧙</div>
+<div class="card-name">玄学管家</div>
+<div class="card-desc">八字·紫微·奇门·六壬</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/classic-view/" class="card">
+<div class="card-icon">📜</div>
+<div class="card-name">经典古籍</div>
+<div class="card-desc">素问50卷·灵枢·本草</div>
+</a>
+
+<a href="/ask" class="card">
+<div class="card-icon">🤖</div>
+<div class="card-name">AI问答</div>
+<div class="card-desc">DeepSeek V4 驱动</div>
+</a>
+
+<a href="/crawled-view/" class="card">
+<div class="card-icon">[虫]</div>
+<div class="card-name">求知虫</div>
+<div class="card-desc">爬取内容查看器</div>
+</a>
+
+<a href="/forge-destiny" class="card">
+<div class="card-icon">⚒️</div>
+<div class="card-name">锻因缘</div>
+<div class="card-desc">平行世界·命运之锤</div>
+</a>
+
+<a class="card" style="background:#1a1a2e;color:#fff">
+<div class="card-icon" style="font-size:1.2rem">🌙</div>
+<div class="card-name">系统命令</div>
+<div class="card-desc" style="color:#aaa;font-size:.72rem">
+bazi / xiaoliuren / steward / phil
+</div>
+</a>
+
+</div>
+
+<div class="footer">
+<a href="/">← 返回首页</a> · 🌙 莫名心小站 v3
+</div>
+
+</body></html>'''
+
+
+# ── 启动（必须在所有路由之后） ──
+
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", "8080"))
     print(f"\n{'═' * 50}")
     print("🌙 莫名心 · 小站 v3 (Flask 重装甲版)")
     print(f"{'═' * 50}")
+    print(f"  所有路由已注册")
     print(f"  6 个 Tab + AI 问答 + 密码保护")
     if _PWD_FILE and os.path.isfile(_PWD_FILE):
         print(f"  密码: 来自 密码.json")
