@@ -12,7 +12,7 @@ from datetime import timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from xin_web_server import (
     HTML_PAGE, get_yunqi_data, search_knowledge_refs, ai_ask,
-    _本地五运六气, DiagnoseHandler, _get_ai_key,
+    _本地五运六气, DiagnoseHandler, _get_ai_key, run_diagnosis,
 )
 
 # Flask
@@ -108,7 +108,8 @@ document.getElementById('loginForm').onsubmit = async function(e){
   else { document.getElementById('errorMsg').style.display = 'block'; }
 };
 // 跟小站一样的深色主题
-if(window.matchMedia('(prefers-color-scheme:dark)').matches){
+var savedDark = localStorage.getItem('xiaozhan_dark_mode');
+if(savedDark === 'true' || (savedDark === null && window.matchMedia('(prefers-color-scheme:dark)').matches)){
   document.body.classList.add('dark');
 }
 </script>
@@ -331,6 +332,18 @@ def philosophy():
                     "_concept_zh": cz,
                 }
     return jsonify(sep_data)
+
+
+@app.route("/diagnose", methods=["POST"])
+@login_required
+def diagnose():
+    data = request.json or {}
+    symptoms = data.get("symptoms", [])
+    tongue = data.get("tongue", "")
+    pulse = data.get("pulse", "")
+    bio = data.get("bio", {})
+    result = run_diagnosis(symptoms, tongue, pulse, bio)
+    return jsonify(result)
 
 
 @app.route("/notes")

@@ -617,6 +617,86 @@ body {
   .yunqi-grid { grid-template-columns: 1fr; }
   .kw-categories { grid-template-columns: 1fr 1fr; }
 }
+@media (max-width: 380px) {
+  body { padding: 10px; }
+  .header h1 { font-size: 19px; }
+  .tab { font-size: 12px; padding: 8px 4px; }
+  .card { padding: 14px; border-radius: 12px; }
+  .symptom-item { font-size: 13px; padding: 6px; }
+  .tag { font-size: 13px; padding: 6px 12px; }
+}
+
+/* 增大触摸区域 - 移动端友好 */
+button, .tab, .tag, .symptom-item, .kw-cat { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+input, select, textarea { font-size: 16px !important; } /* 防止iOS自动缩放 */
+
+/* Toast 通知 */
+.toast-container {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none; max-width: 360px; width: 90%;
+}
+.toast {
+  background: var(--card); color: var(--text);
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 14px; line-height: 1.5;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  animation: toastIn 0.25s ease-out;
+  display: flex; align-items: center; gap: 8px;
+  pointer-events: auto;
+}
+.toast.toast-error { border-left: 3px solid #d86050; }
+.toast.toast-success { border-left: 3px solid var(--green); }
+.toast.toast-info { border-left: 3px solid var(--blue); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 暗色模式开关样式 */
+.theme-toggle {
+  position: fixed; bottom: 20px; right: 20px;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+}
+.theme-toggle:hover { transform: scale(1.1); }
+body.dark-theme .theme-toggle { border-color: #3a3a40; }
+
+/* Tab 切换淡入 */
+.tab-content { display: none; }
+.tab-content.active {
+  display: block;
+  animation: tabFadeIn 0.2s ease-out;
+}
+@keyframes tabFadeIn {
+  from { opacity: 0.4; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 更好的 loading */
+.loading {
+  text-align: center; padding: 40px 20px;
+  font-size: 14px; color: var(--text-light);
+}
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--tab-bg);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Tab 控制 - 使用属性选择器达到最高优先级 */
 /* tab-content display controlled by JS inline styles */
@@ -628,6 +708,12 @@ body {
   <h1>🌙 莫名心 · 中医小站</h1>
   <div class="sub">诊断 · 运气 · 经典 · 一个站就够了</div>
 </div>
+
+<!-- Toast 容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- 暗色模式开关 -->
+<button class="theme-toggle" id="themeToggle" onclick="toggleDarkMode()" title="切换主题">🌙</button>
 
 <!-- 导航标签 -->
 <div class="tabs">
@@ -1081,6 +1167,76 @@ body {
 
 <script>
 // ═════════════════════════════════
+// 暗色模式 & Toast 系统
+// ═════════════════════════════════
+
+// 初始化：从 localStorage 恢复暗色模式
+(function initTheme(){
+  try {
+    const saved = localStorage.getItem('xiaozhan_dark_mode');
+    if (saved === 'true') {
+      document.body.classList.add('dark-theme');
+      document.getElementById('themeToggle').textContent = '☀️';
+    }
+  } catch(e){}
+})();
+
+function toggleDarkMode() {
+  const body = document.body;
+  const btn = document.getElementById('themeToggle');
+  const isDark = body.classList.toggle('dark-theme');
+  btn.textContent = isDark ? '☀️' : '🌙';
+  try { localStorage.setItem('xiaozhan_dark_mode', isDark); } catch(e){}
+}
+
+// Toast 通知
+function showToast(msg, type) {
+  type = type || 'info';
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  const icons = {error:'❌', success:'✅', info:'💡'};
+  toast.innerHTML = (icons[type] || '💡') + ' ' + msg;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// 简单的 Markdown 渲染（只处理常用格式）
+function renderMarkdown(text) {
+  if (!text) return '';
+  let html = text
+    // 转义 HTML
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // 代码块
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    // 行内代码
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // 标题 (### → ## → #)
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // 加粗
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // 斜体
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // 无序列表
+    .replace(/^\s*[-*+] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    // 有序列表
+    .replace(/^\s*\d+\. (.+)$/gm, '<li>$1</li>')
+    // 引用
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    // 换行
+    .replace(/\n/g, '<br>');
+  return html;
+}
+
+// ═════════════════════════════════
 // Tab 切换
 // ═════════════════════════════════
 function switchTab(name) {
@@ -1098,9 +1254,6 @@ function switchTab(name) {
     targetContent.style.removeProperty('display');
     targetContent.style.display = 'block';
   }
-  
-  // 整体换肤：物态人论用深色，其他用浅色
-  document.body.classList.toggle('dark-theme', name === 'phase');
   
   if (name === 'yunqi') {
     const dt = document.getElementById('yunqiDate');
@@ -1221,9 +1374,10 @@ function filterCrawled() {
 // ═════════════════════════════════
 async function askAI() {
   const q = document.getElementById('aiQuestion').value.trim();
-  if (!q) return;
+  if (!q) { showToast('请输入问题', 'error'); return; }
   document.getElementById('aiLoading').style.display = 'block';
   document.getElementById('aiAnswer').style.display = 'none';
+  showToast('🤔 思考中…', 'info');
   try {
     const res = await fetch('/ask', {
       method: 'POST',
@@ -1233,22 +1387,25 @@ async function askAI() {
     const d = await res.json();
     document.getElementById('aiLoading').style.display = 'none';
     if (d.success) {
-      document.getElementById('aiAnswer').textContent = d.answer;
-      document.getElementById('aiAnswer').style.display = 'block';
+      const answerDiv = document.getElementById('aiAnswer');
+      answerDiv.innerHTML = renderMarkdown(d.answer);
+      answerDiv.style.display = 'block';
+      showToast('回答完成 ✓', 'success');
       // 如果更新了哲思词条，清除缓存
       if (d.concept_updated) {
         window._philosophyDirty = true;
-        var note = document.getElementById('aiAnswer');
-        note.textContent += '\n\n📝 已自动更新词条：' + d.concept_updated + '（切哲思Tab可查看）';
+        answerDiv.innerHTML += '<br><br>📝 <em>已自动更新词条：' + d.concept_updated + '（切哲思Tab可查看）</em>';
       }
     } else {
-      document.getElementById('aiAnswer').textContent = '❌ 出错了: ' + (d.error || '未知错误');
+      document.getElementById('aiAnswer').innerHTML = '<div class="error-msg">❌ ' + (d.error || '未知错误') + '</div>';
       document.getElementById('aiAnswer').style.display = 'block';
+      showToast('查询失败', 'error');
     }
   } catch (e) {
     document.getElementById('aiLoading').style.display = 'none';
-    document.getElementById('aiAnswer').textContent = '❌ 网络错误: ' + e.message;
+    document.getElementById('aiAnswer').innerHTML = '<div class="error-msg">❌ 网络错误: ' + e.message + '</div>';
     document.getElementById('aiAnswer').style.display = 'block';
+    showToast('网络错误', 'error');
   }
 }
 
@@ -1929,7 +2086,7 @@ async function submitDiagnosis() {
   const symptoms = [];
   document.querySelectorAll('#symptomGrid input:checked').forEach(e => symptoms.push(e.value));
   for (const s of customSymptoms) symptoms.push(s);
-  if (symptoms.length === 0) { alert('请至少选择或输入一个症状'); return; }
+  if (symptoms.length === 0) { showToast('请至少选择或输入一个症状', 'error'); return; }
   
   const tongue = Array.from(document.querySelectorAll('#tongueGroup .selected')).map(e => e.dataset.val).join(',');
   const pulse = Array.from(document.querySelectorAll('#pulseGroup .selected')).map(e => e.dataset.val).join(',');
@@ -1964,7 +2121,7 @@ async function submitDiagnosis() {
   } catch (e) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('inputArea').style.display = 'block';
-    alert('网络错误: ' + e.message);
+    showToast('网络错误: ' + e.message, 'error');
   }
 }
 
