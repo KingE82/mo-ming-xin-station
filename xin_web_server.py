@@ -1007,15 +1007,30 @@ function showResult(data) {
   }
 
   // 西医建议
-  if (data.knowledge && data.knowledge.symmap && data.knowledge.symmap.diseases && data.knowledge.symmap.diseases.length) {
-    document.getElementById('westernCard').style.display = 'block';
-    var wHtml = '<div style="margin-bottom:8px;font-weight:500">🔬 可能关联的西医疾病：</div>';
-    data.knowledge.symmap.diseases.slice(0,6).forEach(function(d) {
-      wHtml += '<div style="padding:4px 0;border-bottom:1px solid #f0ebe6">';
-      wHtml += '· ' + (d.name || '');
-      if (d.icd10) wHtml += ' <span style="font-size:11px;color:#888">(' + d.icd10 + ')</span>';
-      wHtml += '</div>';
+  var westHtml = '';
+  
+  // 证型→西医疾病对照
+  if (data.western_diseases && data.western_diseases.length) {
+    westHtml += '<div style="margin-bottom:6px;font-weight:500">🏥 根据辨证，建议排查：</div>';
+    data.western_diseases.forEach(function(d) {
+      westHtml += '<div style="padding:3px 0;font-size:13px">· ' + d + '</div>';
     });
+  }
+  
+  if (data.knowledge && data.knowledge.symmap && data.knowledge.symmap.diseases && data.knowledge.symmap.diseases.length) {
+    westHtml += '<div style="margin-top:8px;font-weight:500">🔬 关联西医疾病（SymMap）：</div>';
+    data.knowledge.symmap.diseases.slice(0,6).forEach(function(d) {
+      westHtml += '<div style="padding:4px 0;border-bottom:1px solid #f0ebe6">';
+      westHtml += '· ' + (d.name || '');
+      if (d.icd10) westHtml += ' <span style="font-size:11px;color:#888">(' + d.icd10 + ')</span>';
+      westHtml += '</div>';
+    });
+  }
+  
+  if (westHtml) {
+    document.getElementById('westernCard').style.display = 'block';
+    document.getElementById('westernAdviceContent').innerHTML = westHtml;
+  }
     if (data.knowledge.symmap.matched_symptoms && data.knowledge.symmap.matched_symptoms.length) {
       wHtml += '<div style="margin-top:8px;font-weight:500">📊 症状库匹配：</div>';
       data.knowledge.symmap.matched_symptoms.slice(0,3).forEach(function(s) {
@@ -1251,6 +1266,23 @@ def run_diagnosis(symptoms, tongue, pulse):
         result['foods_to_avoid'] = []
         result['recipes'] = []
         result['concurrent_syndrome'] = None
+
+    # ══════ 证型→西医疾病对照 ══════
+    try:
+        from xin_claw_doctor import SYNDROME_WESTERN_MAP
+        syn = result.get('syndrome', '')
+        refs = SYNDROME_WESTERN_MAP.get(syn, [])
+        result['western_diseases'] = refs
+        # 兼证也加进去
+        cs = result.get('concurrent_syndrome')
+        if cs:
+            cs_name = cs.get('syndrome', '')
+            for d in SYNDROME_WESTERN_MAP.get(cs_name, []):
+                if d not in refs:
+                    refs.append(d)
+            result['western_diseases'] = refs
+    except Exception:
+        result['western_diseases'] = []
 
     # 知识图谱补充（TCM-MKG + SymMap 双源）
     try:
