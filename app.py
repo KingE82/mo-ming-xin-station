@@ -1382,9 +1382,10 @@ def daogui3():
     """道归3.0 · 未来展望"""
     BASE = os.path.dirname(os.path.abspath(__file__))
     pages = [
-        ("道归体系全貌_v3.0_优化版", "🏛️ 体系全貌"),
-        ("新兴学科预测_优化版", "🔮 新兴学科"),
-        ("灵魂稳定学（第九支柱）_优化版", "💎 灵魂稳定学"),
+        ("道归体系全貌v30整合版", "🏛️ 体系全貌"),
+        ("道归体系全貌v30优化版", "📜 体系全貌·简版"),
+        ("新兴学科预测优化版", "🔮 新兴学科"),
+        ("灵魂稳定学第九支柱优化版", "💎 灵魂稳定学"),
     ]
     html = '''<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8">
@@ -1403,13 +1404,13 @@ blockquote{border-left:3px solid #8b0000;margin:16px 0;padding:8px 16px;backgrou
     html += '<h1>🌙 道归3.0 · 未来展望</h1>\n<div class="nav">'
     for slug, label in pages:
         html += f'<a href="?p={slug}">{label}</a> '
-    html += '</div>\n'
+    html += '<a href="/" style="background:#8b0000">← 返回小站</a></div>\n'
     
-    p = request.args.get('p', '道归体系全貌_v3.0_优化版')
+    p = request.args.get('p', '道归体系全貌v30整合版')
     found = False
     for slug, label in pages:
         if p == slug:
-            filepath = os.path.join(BASE, '道归', f'{slug}.md')
+            filepath = os.path.join(BASE, '道归3.0', f'{slug}.md')
             if os.path.isfile(filepath):
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -1579,7 +1580,7 @@ def api_tts():
     return jsonify(result)
 
 
-_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">七套术数引擎 · 输入生达即可起盘</p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><input type=\"date\" name=\"bdate\" value=\"2026-07-28\" required></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-bottom:14px">
+_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">七套术数引擎 · 输入生达即可起盘</p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><input type=\"date\" name=\"bdate\" value=\"2026-07-28\" required></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-bottom:14px">
 <label>模式</label>
 <div style="display:flex;gap:10px;margin-top:4px">
 <label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
@@ -1682,12 +1683,12 @@ def steward():
                 raw_p1 = ""
                 raw_p2 = ""
                 try:
-                    r1 = _sp.run(["python3", steward_script, "--birthdate", birthdate, "--sex", data.get("sex","1"), "--mode", mode], capture_output=True, text=True, timeout=20)
+                    r1 = _sp.run(["python3", steward_script, "--birthdate", birthdate, "--sex", data.get("sex","1"), "--birthplace", data.get("longitude","120"), "--mode", mode], capture_output=True, text=True, timeout=20)
                     raw_p1 = (r1.stdout or "")[:5000]
                 except:
                     raw_p1 = f"第一人排盘错误"
                 try:
-                    r2 = _sp.run(["python3", steward_script, "--birthdate", bd2, "--sex", sex2, "--mode", mode], capture_output=True, text=True, timeout=20)
+                    r2 = _sp.run(["python3", steward_script, "--birthdate", bd2, "--sex", sex2, "--birthplace", data.get("longitude","120"), "--mode", mode], capture_output=True, text=True, timeout=20)
                     raw_p2 = (r2.stdout or "")[:5000]
                 except:
                     raw_p2 = f"第二人排盘错误"
@@ -1696,6 +1697,7 @@ def steward():
                 r = _sp.run(["python3", steward_script,
                             "--birthdate", birthdate,
                             "--sex", data.get("sex", "1"),
+                            "--birthplace", data.get("longitude", "120"),
                             "--mode", mode],
                            capture_output=True, text=True, timeout=20)
                 raw = (r.stdout or "")[:6000]
