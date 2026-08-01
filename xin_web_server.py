@@ -497,6 +497,7 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
 
 <!-- 结果区 -->
 <div class="result-section" id="resultArea">
+  <button class="btn-primary" id="resetBtn" onclick="resetDiagnosis()" style="background:#6b6b6b;margin-bottom:12px;width:100%;">← 重新辨证</button>
   <div class="result-header" id="resultHeader">
     <div class="dx-name"></div>
     <div class="dx-sub"></div>
@@ -545,6 +546,7 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
   <div class="card" id="westernCard" style="display:none">
     <div class="card-title">🏥 西医参考</div>
     <div id="westernInfo" style="font-size:14px;line-height:1.6;"></div>
+    <div id="westernAdviceContent" style="margin-top:8px;font-size:14px;line-height:1.6;"></div>
   </div>
 
   <div class="card" id="knowledgeCard" style="display:none">
@@ -809,11 +811,32 @@ async function submitDiagnosis() {
     document.getElementById('loading').style.display = 'none';
     showResult(data);
     initAppend(symptoms, tongue, pulse);
+    // 结果独占一屏：滚到顶部
+    window.scrollTo({top: 0, behavior: 'smooth'});
   } catch (e) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('inputArea').style.display = 'block';
     alert('网络错误: ' + e.message);
   }
+}
+
+function resetDiagnosis() {
+  // 返回辨证表单
+  document.getElementById('inputArea').style.display = 'block';
+  document.getElementById('resultArea').classList.remove('visible');
+  document.getElementById('appendCard').style.display = 'none';
+  // 清除结果
+  ['herbTags','avoidTags','recipeList','acupointList','dailyCare','emotionCare',
+   'traceContent','westernInfo','westernAdviceContent','knowledgeInfo','nlpResult'
+  ].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  ['resultHeader','westernCard','knowledgeCard','errorCard','traceCard'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
 // ═════════════════════════════════
@@ -1006,38 +1029,6 @@ function showResult(data) {
     document.getElementById('traceContent').innerHTML = traceHtml;
   }
 
-  // 西医建议
-  var westHtml = '';
-  
-  // 证型→西医疾病对照
-  if (data.western_diseases && data.western_diseases.length) {
-    westHtml += '<div style="margin-bottom:6px;font-weight:500">🏥 根据辨证，建议排查：</div>';
-    data.western_diseases.forEach(function(d) {
-      westHtml += '<div style="padding:3px 0;font-size:13px">· ' + d + '</div>';
-    });
-  }
-  
-  if (data.knowledge && data.knowledge.symmap && data.knowledge.symmap.diseases && data.knowledge.symmap.diseases.length) {
-    westHtml += '<div style="margin-top:8px;font-weight:500">🔬 关联西医疾病（SymMap）：</div>';
-    data.knowledge.symmap.diseases.slice(0,6).forEach(function(d) {
-      westHtml += '<div style="padding:4px 0;border-bottom:1px solid #f0ebe6">';
-      westHtml += '· ' + (d.name || '');
-      if (d.icd10) westHtml += ' <span style="font-size:11px;color:#888">(' + d.icd10 + ')</span>';
-      westHtml += '</div>';
-    });
-  }
-  
-  if (westHtml) {
-    document.getElementById('westernCard').style.display = 'block';
-    document.getElementById('westernAdviceContent').innerHTML = westHtml;
-  }
-    if (data.knowledge.symmap.matched_symptoms && data.knowledge.symmap.matched_symptoms.length) {
-      wHtml += '<div style="margin-top:8px;font-weight:500">📊 症状库匹配：</div>';
-      data.knowledge.symmap.matched_symptoms.slice(0,3).forEach(function(s) {
-        wHtml += '<div style="padding:2px 0;font-size:13px">· ' + (s.name || '') + (s.definition ? ' — ' + s.definition.slice(0,60) : '') + '</div>';
-      });
-    }
-    // 西医疾病名称中英对照
     var DISEASE_ZH = {
       'Insomnia': '失眠症',
       'Fatal Familial Insomnia': '致死性家族性失眠症',
@@ -1064,6 +1055,44 @@ function showResult(data) {
       'Tinnitus': '耳鸣',
       'Shoulder pain': '肩痛',
       'Low back pain': '腰痛',
+      'Adjustment Insomnia': '适应性失眠',
+      'Chronic Insomnia': '慢性失眠',
+      'Conditioned Insomnia': '条件性失眠（心理生理性失眠）',
+      'Psychophysiological Insomnia': '心理生理性失眠',
+      'Insomnia': '失眠',
+      'Sleep Disorder': '睡眠障碍',
+      'Restless Legs Syndrome': '不宁腿综合征',
+      'Sleep Apnea': '睡眠呼吸暂停',
+      'Sinusitis': '鼻窦炎',
+      'Conjunctivitis': '结膜炎',
+      'Trigeminal Neuralgia': '三叉神经痛',
+      'Glaucoma': '青光眼',
+      'Cataract': '白内障',
+      'Dry Eye': '干眼症',
+      'Macular Degeneration': '黄斑变性',
+      'Arrhythmia': '心律失常',
+      'Angina': '心绞痛',
+      'Hyperlipidemia': '高脂血症',
+      'Fatty Liver': '脂肪肝',
+      'Hepatitis': '肝炎',
+      'Cirrhosis': '肝硬化',
+      'Nephritis': '肾炎',
+      'Thyroid Disease': '甲状腺疾病',
+      'Hyperthyroidism': '甲状腺功能亢进',
+      'Hypothyroidism': '甲状腺功能减退',
+      'Ulcer': '溃疡',
+      'GERD': '胃食管反流病',
+      'IBS': '肠易激综合征',
+      'Colitis': '结肠炎',
+      'Osteoarthritis': '骨关节炎',
+      'Rheumatoid Arthritis': '类风湿关节炎',
+      'Sciatica': '坐骨神经痛',
+      'Cervical Spondylosis': '颈椎病',
+      'Depressive Disorder': '抑郁障碍',
+      'Anxiety Disorder': '焦虑障碍',
+      'Panic Disorder': '惊恐障碍',
+      'Bipolar Disorder': '双相情感障碍',
+      'Schizophrenia': '精神分裂症',
     };
     var wHtml = '<div style="margin-bottom:8px;font-weight:500">\U0001f52c 可能关联的西医疾病：</div>';
     data.knowledge.symmap.diseases.slice(0,6).forEach(function(d) {
@@ -1081,6 +1110,7 @@ function showResult(data) {
         wHtml += '<div style="padding:2px 0;font-size:13px">\u00b7 ' + (s.name || '') + (s.definition ? ' \u2014 ' + s.definition.slice(0,60) : '') + '</div>';
       });
     }
+    document.getElementById('westernCard').style.display = 'block';
     document.getElementById('westernInfo').innerHTML = wHtml;
   }
 
@@ -1150,8 +1180,7 @@ function resetAll() {
 })();
 </script>
 </body>
-</html>
-"""
+</html>"""
 
 # ═══════════════════════════════════════════
 # HTTP 服务
@@ -1312,6 +1341,17 @@ def run_diagnosis(symptoms, tongue, pulse):
         sym_syndromes = sym.get('syndromes', [])
         sym_matched_symptoms = sym.get('matched_symptoms', [])
         sym_status = sym.get('status', {})
+
+        # 去重：同名疾病只保留第一个（保留带ICD10的优先）
+        seen_names = set()
+        deduped = []
+        for d in sym_diseases:
+            nm = (d.get('name') or '').strip()
+            if not nm or nm in seen_names:
+                continue
+            seen_names.add(nm)
+            deduped.append(d)
+        sym_diseases = deduped
         
         result['knowledge'] = {
             'version': kb.get('version', '未知'),
