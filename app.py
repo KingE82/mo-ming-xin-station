@@ -19,10 +19,45 @@ from xin_web_server import (
 from flask import Flask, request, jsonify, session, redirect, make_response
 from waitress import serve
 
+# ── 防滥用限流 ──
+import time as _time
+from collections import defaultdict
+from functools import wraps
+
+_RATE_MIN = 15   # 每分钟最多15次（防滥用但不误伤正常使用）
+_RATE_DAY = 300  # 每天最多300次
+_rate_min_buckets = defaultdict(list)
+_rate_day_buckets = defaultdict(list)
+
+def _client_ip():
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        return fwd.split(',')[0].strip()
+    return request.remote_addr or 'unknown'
+
+def rate_limit(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if request.method != 'POST':
+            return f(*args, **kwargs)
+        ip = _client_ip()
+        now = _time.time()
+        _rate_min_buckets[ip] = [t for t in _rate_min_buckets[ip] if now - t < 60]
+        _rate_day_buckets[ip] = [t for t in _rate_day_buckets[ip] if now - t < 86400]
+        if len(_rate_day_buckets[ip]) >= _RATE_DAY:
+            return jsonify({"error": "今日调用次数已达上限，明天再来吧"}), 429
+        if len(_rate_min_buckets[ip]) >= _RATE_MIN:
+            return jsonify({"error": "操作太频繁了，歇一分钟再试"}), 429
+        _rate_min_buckets[ip].append(now)
+        _rate_day_buckets[ip].append(now)
+        return f(*args, **kwargs)
+    return wrapper
+
+
+
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = False
 app.config["TRAP_HTTP_EXCEPTIONS"] = False
-
 # 工具台 Blueprint（隔离路由注册）
 try:
     from tools_blueprint import tools_bp
@@ -143,6 +178,21 @@ def login_required(f):
             return _LOGIN_HTML
         return f(*args, **kwargs)
     return wrapper
+
+
+# ── 百宝囊（工具集）挂载：ConvertAgent/SnapOtter 思路的手搓轻量版 ──
+from toolbox_routes import register_toolbox_routes
+register_toolbox_routes(app)
+# 理论体系总览
+from theory_routes import register_theory_routes
+register_theory_routes(app)
+for _rule in [r for r in app.url_map.iter_rules() if r.endpoint in ("theory_page", "theory_api")]:
+    _view = app.view_functions[_rule.endpoint]
+    app.view_functions[_rule.endpoint] = login_required(_view)
+# 给百宝囊路由加上登录保护（手动替换视图）
+for _rule in [r for r in app.url_map.iter_rules() if r.endpoint in ("toolbox_page", "toolbox_api", "toolbox_download")]:
+    _view = app.view_functions[_rule.endpoint]
+    app.view_functions[_rule.endpoint] = login_required(_view)
 
 
 # ── 路由 ──
@@ -583,6 +633,7 @@ def philosophy_concept():
 
 @app.route("/ask", methods=["GET", "POST"])
 @login_required
+@rate_limit
 def ask():
     if request.method == "GET":
         return """<!DOCTYPE html><html lang="zh-CN"><head>
@@ -660,7 +711,7 @@ function renderMD(t) {
     .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
     .replace(/^\s*[-*+] (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\\n?)+/g,'<ul>$&</ul>')
-    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/\n/g,'<br>');
+    .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/\\n/g,'<br>');
 }
 // 暗色同步
 (function(){
@@ -1018,9 +1069,23 @@ def gutenberg():
     h += '<p class="sub">Project Gutenberg · 免费哲学经典搜索</p>'
     safe_q = html.escape(query)
     h += '<form method="get" action="/gutenberg"><input type="text" name="q" placeholder="搜索作者或书名…" value="' + safe_q + '"></form>'
+
+    if not query and not results:
+        h += '<p class="sub">推荐经典 · 点击阅读</p>'
+        recs = [
+            ("柏拉图 · 理想国", "Plato — The Republic", "https://www.gutenberg.org/ebooks/1497"),
+            ("亚里士多德 · 形而上学", "Aristotle — Metaphysics", "https://www.gutenberg.org/ebooks/50504"),
+            ("亚里士多德 · 尼各马可伦理学", "Aristotle — Nicomachean Ethics", "https://www.gutenberg.org/ebooks/8438"),
+            ("康德 · 纯粹理性批判", "Kant — Critique of Pure Reason", "https://www.gutenberg.org/ebooks/4280"),
+            ("笛卡尔 · 第一哲学沉思集", "Descartes — Meditations on First Philosophy", "https://www.gutenberg.org/ebooks/59"),
+            ("休谟 · 人性论", "Hume — A Treatise of Human Nature", "https://www.gutenberg.org/ebooks/4705"),
+            ("尼采 · 查拉图斯特拉如是说", "Nietzsche — Thus Spake Zarathustra", "https://www.gutenberg.org/ebooks/1998"),
+            ("马克思 · 资本论", "Marx — Das Kapital", "https://www.gutenberg.org/ebooks/30107"),
+        ]
+        for title, author, url in recs:
+            h += '<a class="card" href="' + url + '" target="_blank"><div class="ctitle">' + title + '</div><div class="cauthor">' + author + '</div><div class="clink">🔗 古登堡计划</div></a>'
     
     if results:
-        h += '<p class="sub">找到 ' + str(len(results)) + ' 条结果</p>'
         for r in results[:20]:
             title = html.escape(str(r.get("title", ""))[:80])
             author = html.escape(str(r.get("author", ""))[:40])
@@ -1087,6 +1152,1395 @@ def skills():
         with open(skills_path, "r", encoding="utf-8") as f:
             return jsonify(json.load(f))
     return jsonify({}), 200
+
+
+@app.route("/voice-bookmarklet-v2")
+def voice_bookmarklet_v2():
+    """语音输入书签脚本 v2（本地 Vosk）下载"""
+    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_bookmarklet_v2.txt"), encoding="utf-8").read(), 200, {
+        "Content-Type": "text/plain; charset=utf-8",
+    }
+
+
+@app.route("/voice-guide")
+def voice_guide():
+    """语音输入安装指南"""
+    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_guide.html"), encoding="utf-8").read()
+
+
+@app.route("/voice-script")
+def voice_script():
+    """语音输入用户脚本下载"""
+    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "openclaw_voice_v2.user.js"), encoding="utf-8").read(), 200, {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Content-Disposition": "attachment; filename=openclaw_voice_v2.user.js",
+    }
+
+
+@app.route("/voice-check", methods=["GET"])
+def voice_check():
+    """语音能力检测页：确认浏览器 SpeechRecognition 支持情况"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>语音能力检测 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:560px;margin:0 auto;padding:20px}
+h1{font-size:22px;color:#8e44ad}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+.item{padding:10px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+.item:last-child{border:none}
+.ok{color:#27ae60;font-weight:600}
+.no{color:#c0392b;font-weight:600}
+.btn{width:100%;padding:14px;background:#8e44ad;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px}
+#micTest{display:none;margin-top:12px;padding:16px;background:#f8f4ff;border-radius:12px;text-align:center}
+#micText{font-size:18px;color:#8e44ad;min-height:30px;margin:8px 0}
+</style></head><body>
+<h1>🎤 语音能力检测</h1>
+<div class="card">
+  <div class="item">SpeechRecognition: <span id="sr">检测中…</span></div>
+  <div class="item">webkitSpeechRecognition: <span id="wsr">检测中…</span></div>
+  <div class="item">SpeechRecognition.install: <span id="inst">检测中…</span></div>
+  <div class="item">SpeechSynthesis: <span id="syn">检测中…</span></div>
+  <div class="item">麦克风权限: <span id="mic">未测试</span></div>
+  <button class="btn" id="testBtn" onclick="testMic()">🎙️ 测试麦克风 + 语音识别</button>
+</div>
+<div id="micTest">
+  <div>请对着麦克风说一句话…</div>
+  <div id="micText">…</div>
+  <div id="micHint" style="font-size:12px;color:#999"></div>
+</div>
+<script>
+var S = window.SpeechRecognition;
+var WS = window.webkitSpeechRecognition;
+document.getElementById('sr').innerHTML = S ? '<span class="ok">✅ 支持</span>' : '<span class="no">❌ 不支持</span>';
+document.getElementById('wsr').innerHTML = WS ? '<span class="ok">✅ 支持</span>' : '<span class="no">❌ 不支持</span>';
+document.getElementById('inst').innerHTML = (S && S.install) ? '<span class="ok">✅ ' + typeof S.install + '</span>' : '<span class="no">❌ 无</span>';
+document.getElementById('syn').innerHTML = window.speechSynthesis ? '<span class="ok">✅ 支持</span>' : '<span class="no">❌ 不支持</span>';
+
+function testMic() {
+  var R = S || WS;
+  if (!R) { document.getElementById('mic').innerHTML = '<span class="no">❌ 浏览器不支持语音识别</span>'; return; }
+  try {
+    var rec = new R();
+    rec.lang = 'zh-CN';
+    rec.interimResults = true;
+    document.getElementById('mic').innerHTML = '<span class="ok">✅ 请求权限中…</span>';
+    document.getElementById('micTest').style.display = 'block';
+    rec.onresult = function(e) {
+      var t = '';
+      for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      document.getElementById('micText').textContent = t;
+    };
+    rec.onerror = function(e) {
+      document.getElementById('mic').innerHTML = '<span class="no">❌ ' + e.error + '</span>';
+      document.getElementById('micHint').textContent = '错误: ' + e.error;
+    };
+    rec.onend = function() {
+      document.getElementById('micHint').textContent = '（已停止）';
+    };
+    rec.start();
+  } catch(e) {
+    document.getElementById('mic').innerHTML = '<span class="no">❌ 启动失败: ' + e.message + '</span>';
+  }
+}
+</script></body></html>"""
+
+
+@app.route("/kx", methods=["GET"])
+@login_required
+def kx_page():
+    """知识库问答"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>知识库问答 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:680px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#4a7dff}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
+input{width:100%;padding:12px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
+input:focus{border-color:#4a7dff}
+.btn{width:100%;padding:13px;background:#4a7dff;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn:disabled{opacity:.5}
+#loading{display:none;text-align:center;padding:16px;color:#4a7dff}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#4a7dff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#result{margin-top:12px}
+.hit{background:#fff;border-radius:10px;padding:14px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:14px;line-height:1.8}
+.hit .t{font-weight:700;font-size:15px;color:#4a7dff;margin-bottom:8px}
+.src{display:inline-block;background:#4a7dff11;color:#4a7dff;padding:3px 10px;border-radius:8px;font-size:12px;margin:4px 4px 0 0}
+.badge{display:inline-block;background:#4a7dff11;color:#4a7dff;border:1px solid #4a7dff44;padding:2px 10px;border-radius:10px;font-size:11px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#4a7dff;text-decoration:none}
+.note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+</style></head><body>
+<h1>📚 知识库问答</h1>
+<p class="sub">本地检索（bge embedding）· DeepSeek 回答 · 来源可追溯</p>
+<div class="card">
+  <label>问题</label>
+  <input type="text" id="q" placeholder="如：道归是什么？素问怎么论述阴阳？" value="道归是什么">
+  <button class="btn" id="goBtn" onclick="run()">🔍 提问</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>检索知识库中…</p></div>
+<div id="result"></div>
+<p class="note">🔒 知识库含道归体系 · 医书经典 · 哲学典籍（74篇文档）</p>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+async function run(){
+  var b=document.getElementById('goBtn');b.disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('result').innerHTML='';
+  var body={q:document.getElementById('q').value};
+  try{
+    var r=await fetch('/kx',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+    var d=await r.json();
+    document.getElementById('loading').style.display='none';
+    if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
+    var h='<div class="hit"><div class="t">📚 回答</div>'+d.answer+'</div>';
+    if(d.sources&&d.sources.length){
+      h+='<div class="hit"><div class="t">📎 引用来源</div>';
+      d.sources.forEach(function(s){h+='<span class="src">'+s.title+' ('+s.score+')</span>'});
+      h+='</div>';
+    }
+    document.getElementById('result').innerHTML=h;
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
+  }
+  b.disabled=false;
+}
+</script></body></html>"""
+
+
+@app.route("/kx", methods=["POST"])
+@login_required
+@rate_limit
+def kx_api():
+    """知识库问答 API"""
+    data = request.get_json(silent=True) or {}
+    q = (data.get("q", "") or "").strip()[:200]
+    if not q:
+        return jsonify({"error": "问题不能为空"}), 400
+    try:
+        import kx_ask as _kx
+        result = _kx.ask(q, top_k=3)
+        answer = html.escape(result.get("answer", ""))[:6000]
+        sources = [
+            {"title": s["title"][:80], "score": s["score"], "path": s.get("path", "")[:120]}
+            for s in result.get("sources", [])
+        ]
+        return jsonify({"answer": answer.replace("\n", "<br>"), "sources": sources})
+    except Exception as e:
+        return jsonify({"error": f"问答失败: {str(e)[:200]}"}), 500
+
+
+@app.route("/ai-read", methods=["POST"])
+@login_required
+@rate_limit
+def ai_read_api():
+    """AI 解读 API（诗词/术数盘面 → DeepSeek 分析）"""
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text", "") or "").strip()[:8000]
+    scene = (data.get("scene", "xuanxue_general") or "xuanxue_general").strip()
+    if not text:
+        return jsonify({"error": "内容不能为空"}), 400
+    try:
+        import ai_reader as _ar
+        result = _ar.ai_read(text, scene)
+        return jsonify({"answer": result})
+    except Exception as e:
+        return jsonify({"error": f"AI 解读失败: {str(e)[:150]}"}), 500
+
+
+@app.route("/poetry", methods=["GET"])
+@login_required
+def poetry_page():
+    """诗词查询页（31万诗词+诗经+论语）"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>诗词查询 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f8f5f0;color:#2c2c2c;max-width:720px;margin:0 auto;padding:16px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.topbar a{color:#b8860b;text-decoration:none;font-size:14px}
+h1{font-size:22px;color:#b8860b;margin:0}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.search{display:flex;gap:8px;margin-bottom:16px}
+.search input{flex:1;padding:12px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none}
+.search button{padding:12px 20px;background:#b8860b;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{padding:6px 14px;border:2px solid #e0d8d2;border-radius:20px;background:#fff;font-size:13px;cursor:pointer;color:#666}
+.tabs button.on{background:#b8860b;color:#fff;border-color:#b8860b}
+.result{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:12px}
+.result h3{margin:0 0 6px;font-size:16px;color:#8b6914}
+.result .meta{color:#999;font-size:12px;margin-bottom:8px}
+.result pre{white-space:pre-wrap;font-family:"Kaiti SC",KaiTi,serif;font-size:15px;line-height:1.8;margin:0;color:#333}
+.empty{color:#999;text-align:center;padding:30px}
+.footer{text-align:center;color:#aaa;font-size:12px;margin-top:20px}
+.footer a{color:#b8860b;text-decoration:none}
+</style></head><body>
+<div class="topbar"><a href="/tools">🧰 返回工作台</a></div>
+<h1>🏮 诗词查询</h1>
+<p class="sub">31万首诗词 · 诗经305篇 · 论语 · 本地检索</p>
+<div class="search">
+<input id="kw" placeholder="输入关键词/诗句/作者…（支持简体）" value="明月">
+<button onclick="go()">搜索</button>
+</div>
+<div class="tabs">
+<button class="on" onclick="setTab(this,'all')">全部</button>
+<button onclick="setTab(this,'poem')">正文</button>
+<button onclick="setTab(this,'title')">标题</button>
+<button onclick="setTab(this,'author')">作者</button>
+<button onclick="setTab(this,'shijing')">诗经</button>
+</div>
+<div id="out"></div>
+<p class="footer"><a href="/tools">← 返回工具台</a> · 🌙 莫名心</p>
+<script>
+let mode='all';
+function setTab(el,m){document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));el.classList.add('on');mode=m;go();}
+async function go(){
+  const kw=document.getElementById('kw').value.trim();
+  if(!kw){document.getElementById('out').innerHTML='<div class="empty">请输入关键词</div>';return;}
+  const out=document.getElementById('out');
+  out.innerHTML='<div class="empty">搜索中…</div>';
+  try{
+    const r=await fetch('/poetry',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({q:kw,mode})});
+    const d=await r.json();
+    if(d.error){out.innerHTML='<div class="empty">'+d.error+'</div>';return;}
+    if(!d.items||!d.items.length){out.innerHTML='<div class="empty">未找到相关诗词</div>';return;}
+    out.innerHTML=d.items.map(x=>'<div class="result" style="cursor:pointer" data-t="'+x.title+'" data-a="'+x.author+'" data-tp="'+x.type+'" data-rid="'+(x.rowid||'')+'" onclick="goDetail(this)"><h3>'+x.title+'</h3><div class="meta">['+x.type+'] '+x.author+'</div><pre>'+x.content+'</pre><div class="hint" style="color:#b8860b;font-size:12px;text-align:right;margin-top:6px">点击查看详情 →</div></div>').join('');
+  }catch(e){out.innerHTML='<div class="empty">请求失败</div>';}
+}
+async function goDetail(el){
+  const t=el.dataset.t, a=el.dataset.a, tp=el.dataset.tp, rid=el.dataset.rid;
+  location.href='/poetry-view?title='+encodeURIComponent(t)+'&author='+encodeURIComponent(a)+'&type='+encodeURIComponent(tp)+'&rid='+encodeURIComponent(rid);
+}
+async function aiRead(btn,ev){
+  ev.stopPropagation();
+  const box=btn.parentNode.querySelector('.ai-out');
+  const pre=btn.parentNode.querySelector('pre');
+  if(box.innerHTML){box.innerHTML='';return}
+  box.innerHTML='<div class="empty">AI 解读中…</div>';
+  try{
+    const r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:pre.textContent.slice(0,800),scene:'poetry'})});
+    const d=await r.json();
+    box.innerHTML=d.error?'<div class="empty">'+d.error+'</div>':'<div class="ai-body">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){box.innerHTML='<div class="empty">请求失败</div>';}
+}
+go();
+
+
+async function aiXuan(btn){
+  var out=document.getElementById('aiOut');
+  if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
+  if(out.innerHTML){out.innerHTML='';return}
+  out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var hit=btn.parentNode.querySelector('.hit');
+  var report=hit?hit.innerText:'';
+  if(!report) report=btn.parentNode.innerText;
+  try{
+    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
+    var d=await r.json();
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+}
+</script></body></html>"""
+
+
+@app.route("/poetry-view", methods=["GET"])
+@login_required
+def poetry_view_page():
+    """诗词详情页：完整原文 + AI 生成作者生平/写作背景/赏析"""
+    title = request.args.get("title", "")[:80]
+    author = request.args.get("author", "")[:40]
+    typ = request.args.get("type", "")[:10]
+    rid = request.args.get("rid", "")[:12]
+    if not title:
+        return redirect("/poetry")
+    import poetry_query as _pq
+    poem = _pq.get_poem_full(title, author, typ, rid or None)
+    if not poem:
+        return redirect("/poetry")
+    t = html.escape(poem["title"])
+    a = html.escape(poem["author"])
+    tp = html.escape(poem["type"])
+    content = html.escape(poem["content"])
+    # 拼一个带 id 的原始内容（给前端取原文用，避免转义干扰）
+    return f"""<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{t} · 诗词详情 · 莫名心小站</title>
+<style>
+body{{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f8f5f0;color:#2c2c2c;max-width:720px;margin:0 auto;padding:16px}}
+h1{{font-size:24px;color:#8b6914;margin-bottom:4px}}
+.sub{{color:#888;font-size:13px;margin-bottom:16px}}
+.back{{display:inline-block;margin-bottom:14px;color:#b8860b;text-decoration:none;font-size:14px}}
+.poem{{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}}
+.poem pre{{white-space:pre-wrap;font-family:"Kaiti SC",KaiTi,serif;font-size:16px;line-height:1.9;margin:0;color:#333}}
+.ai-box{{background:#fff;border-radius:12px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.06)}}
+.ai-box h2{{font-size:17px;color:#b8860b;margin:0 0 10px}}
+.ai-body{{font-size:14px;line-height:1.8;color:#333;white-space:pre-wrap}}
+.loading{{color:#999;font-size:13px;padding:10px 0}}
+.err{{color:#c0392b;font-size:13px;padding:10px 0}}
+.footer{{text-align:center;color:#aaa;font-size:12px;margin-top:20px}}
+.footer a{{color:#b8860b;text-decoration:none}}
+</style></head><body>
+<a class="back" href="/tools">🧰 返回工作台</a> &nbsp;·&nbsp; <a class="back" href="/poetry">← 返回诗词查询</a>
+<h1>{t}</h1>
+<p class="sub">[{tp}] {a}</p>
+<div class="poem"><pre>{content}</pre></div>
+<div class="ai-box">
+<h2>📜 AI 详情档案（作者生平 · 写作背景 · 赏析）</h2>
+<div id="aiBody" class="loading">AI 正在翻阅典籍，生成中…（约30秒）</div>
+</div>
+<p class="footer"><a href="/poetry">← 返回诗词查询</a> · 🌙 莫名心</p>
+<script>
+const poemRaw = {json.dumps(poem["content"], ensure_ascii=False)};
+const metaText = '【诗词详情】\\n标题：' + {json.dumps(poem["title"], ensure_ascii=False)} + '\\n作者：' + {json.dumps(poem["author"], ensure_ascii=False)} + '\\n\\n' + poemRaw;
+async function loadAI(){{
+  try{{
+    const r=await fetch('/ai-read',{{method:'POST',headers:{{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'}},body:JSON.stringify({{text:metaText.slice(0,3000),scene:'poetry_detail'}})}});
+    const d=await r.json();
+    document.getElementById('aiBody').innerHTML=d.error?'<div class="err">'+d.error+'</div>':'<div class="ai-body">'+d.answer.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>')+'</div>';
+  }}catch(e){{document.getElementById('aiBody').innerHTML='<div class="err">请求失败，请稍后重试</div>';}}
+}}
+loadAI();
+</script></body></html>"""
+
+
+@app.route("/poetry", methods=["POST"])
+@login_required
+@rate_limit
+def poetry_api():
+    """诗词查询 API"""
+    data = request.get_json(silent=True) or {}
+    q = (data.get("q", "") or "").strip()[:100]
+    mode = (data.get("mode", "all") or "all").strip()
+    if not q:
+        return jsonify({"error": "关键词不能为空"}), 400
+    try:
+        import poetry_query as _pq
+        items = []
+        if mode in ("all", "poem"):
+            items += _pq.search_poem(q, top=5)
+        if mode in ("all", "title"):
+            items += _pq.search_poem_by_title(q, top=5)
+        if mode in ("all", "author"):
+            items += _pq.search_by_author(q, top=5)
+        if mode in ("all", "shijing"):
+            items += _pq.search_shijing(q, top=5)
+        if mode in ("all", "lunyu"):
+            items += _pq.search_lunyu(q, top=3)
+        # 去重（按 类型+标题+内容前30）
+        seen, uniq = set(), []
+        for it in items:
+            k = it["type"] + it["title"] + it["content"][:30]
+            if k not in seen:
+                seen.add(k)
+                uniq.append(it)
+        out = []
+        for it in uniq[:8]:
+            out.append({
+                "type": it["type"],
+                "title": it["title"][:60],
+                "author": it["author"][:40],
+                "content": it["content"][:600],
+                "rowid": it.get("rowid"),
+            })
+        return jsonify({"items": out})
+    except Exception as e:
+        return jsonify({"error": f"查询失败: {str(e)[:150]}"}), 500
+
+
+@app.route("/jyotish", methods=["GET"])
+@login_required
+def jyotish_page():
+    """印占+太乙+梅花"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>印占·太乙·梅花 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:680px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#d35400}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
+input,select{width:100%;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
+input:focus,select:focus{border-color:#d35400}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:13px;background:#d35400;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn:disabled{opacity:.5}
+#loading{display:none;text-align:center;padding:16px;color:#d35400}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#d35400;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#result{margin-top:12px}
+.hit{background:#fff;border-radius:10px;padding:14px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:13px;white-space:pre-wrap;line-height:1.8;overflow-x:auto}
+.hit .t{font-weight:700;font-size:15px;color:#d35400;margin-bottom:8px}
+.badge{display:inline-block;background:#d3540011;color:#d35400;border:1px solid #d3540044;padding:2px 10px;border-radius:10px;font-size:11px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#d35400;text-decoration:none}
+.note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+</style></head><body>
+<h1>🌏 印占 · 西洋 · 太乙 · 梅花</h1>
+<p class="sub">吠陀星盘 · 太乙神数 · 梅花易数</p>
+<div class="card">
+  <label>出生日期</label>
+  <input type="date" id="bdate" value="2006-09-22">
+  <div class="row">
+    <div><label>时间</label><input type="time" id="btime" value="07:56"></div>
+    <div><label>性别</label><select id="gender"><option value="male">男</option><option value="female">女</option></select></div>
+  </div>
+  <label>经度（可选）</label>
+  <input type="text" id="lon" placeholder="如 114.88">
+  <label>纬度（可选）</label>
+  <input type="text" id="lat" placeholder="如 40.82">
+  <button class="btn" id="goBtn" onclick="run()">🌏 起盘</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>排盘中…</p></div>
+<div id="result"></div>
+<p class="note">🔒 纯本地计算</p>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+async function run(){
+  var b=document.getElementById('goBtn');b.disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('result').innerHTML='';
+  var body={date:document.getElementById('bdate').value,time:document.getElementById('btime').value,gender:document.getElementById('gender').value,lon:document.getElementById('lon').value,lat:document.getElementById('lat').value};
+  try{
+    var r=await fetch('/jyotish',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+    var d=await r.json();
+    document.getElementById('loading').style.display='none';
+    if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
+    var h='<div class="hit"><div class="t">🌏 三体系排盘</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    document.getElementById('result').innerHTML=h;
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
+  }
+  b.disabled=false;
+}
+async function aiXuan(btn){
+  var out=document.getElementById('aiOut');
+  if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
+  if(out.innerHTML){out.innerHTML='';return}
+  out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var hit=btn.parentNode.querySelector('.hit');
+  var report=hit?hit.innerText:'';
+  if(!report) report=btn.parentNode.innerText;
+  try{
+    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
+    var d=await r.json();
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+}
+</script></body></html>"""
+
+
+@app.route("/jyotish", methods=["POST"])
+@login_required
+@rate_limit
+def jyotish_api():
+    """印占+太乙+梅花 API"""
+    data = request.get_json(silent=True) or {}
+    date_str = data.get("date", "") or ""
+    time_str = data.get("time", "12:00") or "12:00"
+    gender = data.get("gender", "male")
+    lon = data.get("lon", "")
+    lat = data.get("lat", "")
+    import re as _re
+    if not _re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        return jsonify({"error": "日期格式应为 YYYY-MM-DD"}), 400
+    try:
+        import jyotish_steward as _js
+        lon_f = float(lon) if lon else None
+        lat_f = float(lat) if lat else None
+        parts = []
+        try:
+            d = _js.cast_jyotish(date_str, time_str, gender, lat_f, lon_f)
+            parts.append("【印占 Jyotish】\n" + _js._fmt_jyotish(d))
+        except Exception as e:
+            parts.append(f"【印占】错误: {html.escape(str(e))[:150]}")
+        try:
+            d = _js.cast_taiyi(date_str, time_str, gender, lat_f, lon_f)
+            parts.append("\n\n【太乙神数】\n" + _js._fmt_taiyi(d))
+        except Exception as e:
+            parts.append(f"【太乙】错误: {html.escape(str(e))[:150]}")
+        try:
+            d = _js.cast_suimei(date_str, time_str, gender, lat_f, lon_f)
+            parts.append("\n\n【梅花易数】\n" + _js._fmt_suimei(d))
+        except Exception as e:
+            parts.append(f"【梅花】错误: {html.escape(str(e))[:150]}")
+        try:
+            d = _js.cast_astrology(date_str, time_str, gender, lat_f, lon_f)
+            parts.append("\n\n【西洋占星】\n" + _js._fmt_astrology(d))
+        except Exception as e:
+            parts.append(f"【西洋】错误: {html.escape(str(e))[:150]}")
+        return jsonify({"report": html.escape("\n".join(parts))[:9000]})
+    except Exception as e:
+        return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
+
+
+@app.route("/liuyao", methods=["GET"])
+@login_required
+def liuyao_page():
+    """六爻纳甲"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>六爻 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:680px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#27ae60}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
+input,select{width:100%;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
+input:focus,select:focus{border-color:#27ae60}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:13px;background:#27ae60;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn:disabled{opacity:.5}
+#loading{display:none;text-align:center;padding:16px;color:#27ae60}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#27ae60;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#result{margin-top:12px}
+.hit{background:#fff;border-radius:10px;padding:14px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:13px;white-space:pre-wrap;line-height:1.8;overflow-x:auto}
+.hit .t{font-weight:700;font-size:15px;color:#27ae60;margin-bottom:8px}
+.badge{display:inline-block;background:#27ae6011;color:#27ae60;border:1px solid #27ae6044;padding:2px 10px;border-radius:10px;font-size:11px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#27ae60;text-decoration:none}
+.note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+</style></head><body>
+<h1>⚡ 六爻纳甲</h1>
+<p class="sub">三币摇卦 · 四柱 · 六亲 · 神煞 · 变卦</p>
+<div class="card">
+  <label>所占之事</label>
+  <input type="text" id="subject" placeholder="如：事业发展、找东西、感情…" value="事业发展">
+  <label>意图</label>
+  <select id="intent">
+    <option>通用</option><option>求财</option><option>官运</option><option>学业</option>
+    <option>感情</option><option>健康</option><option>孕产</option><option>出行</option>
+    <option>失物</option><option>词讼</option><option>天气</option>
+  </select>
+  <label>手动六爻（可选，6位1-4自下而上，留空=三币随机）</label>
+  <input type="text" id="yao" placeholder="如 112211">
+  <button class="btn" id="goBtn" onclick="run()">⚡ 起卦</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>摇卦中…</p></div>
+<div id="result"></div>
+<p class="note">🔒 纯本地计算</p>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+async function run(){
+  var b=document.getElementById('goBtn');b.disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('result').innerHTML='';
+  var body={subject:document.getElementById('subject').value,intent:document.getElementById('intent').value,yao:document.getElementById('yao').value};
+  try{
+    var r=await fetch('/liuyao',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+    var d=await r.json();
+    document.getElementById('loading').style.display='none';
+    if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
+    var h='<div class="hit"><div class="t">⚡ 六爻卦</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    document.getElementById('result').innerHTML=h;
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
+  }
+  b.disabled=false;
+}
+async function aiXuan(btn){
+  var out=document.getElementById('aiOut');
+  if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
+  if(out.innerHTML){out.innerHTML='';return}
+  out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var hit=btn.parentNode.querySelector('.hit');
+  var report=hit?hit.innerText:'';
+  if(!report) report=btn.parentNode.innerText;
+  try{
+    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
+    var d=await r.json();
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+}
+</script></body></html>"""
+
+
+@app.route("/liuyao", methods=["POST"])
+@login_required
+@rate_limit
+def liuyao_api():
+    """六爻 API"""
+    data = request.get_json(silent=True) or {}
+    subject = (data.get("subject", "") or "占事").strip()[:30]
+    intent = (data.get("intent", "") or "通用").strip()[:10]
+    yao = (data.get("yao", "") or "").strip()
+    try:
+        import liuyao_steward as _ls
+        result = _ls.cast_liuyao(subject, intent, yao=yao or None)
+        report = _ls._fmt_liuyao(result)
+        return jsonify({"report": html.escape(report)[:9000]})
+    except Exception as e:
+        return jsonify({"error": f"起卦失败: {str(e)[:200]}"}), 500
+
+
+@app.route("/qimen", methods=["GET"])
+@login_required
+def qimen_page():
+    """奇门遁甲"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>奇门遁甲 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:680px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#2980b9}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
+input,select{width:100%;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
+input:focus,select:focus{border-color:#2980b9}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:13px;background:#2980b9;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn:disabled{opacity:.5}
+#loading{display:none;text-align:center;padding:16px;color:#2980b9}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#2980b9;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#result{margin-top:12px}
+.hit{background:#fff;border-radius:10px;padding:14px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:13px;white-space:pre-wrap;line-height:1.8;overflow-x:auto}
+.hit .t{font-weight:700;font-size:15px;color:#2980b9;margin-bottom:8px}
+.badge{display:inline-block;background:#2980b911;color:#2980b9;border:1px solid #2980b944;padding:2px 10px;border-radius:10px;font-size:11px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#2980b9;text-decoration:none}
+.note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+</style></head><body>
+<h1>🗺️ 奇门遁甲</h1>
+<p class="sub">拆补法定局 · 天文节气 · 九宫格局判定</p>
+<div class="card">
+  <label>日期</label>
+  <input type="date" id="bdate" value="2006-09-22">
+  <div class="row">
+    <div><label>时辰</label><select id="hour">
+      <option value="0">子时(23-1)</option><option value="2">丑时(1-3)</option><option value="4">寅时(3-5)</option>
+      <option value="6">卯时(5-7)</option><option value="8" selected>辰时(7-9)</option><option value="10">巳时(9-11)</option>
+      <option value="12">午时(11-13)</option><option value="14">未时(13-15)</option><option value="16">申时(15-17)</option>
+      <option value="18">酉时(17-19)</option><option value="20">戌时(19-21)</option><option value="22">亥时(21-23)</option>
+    </select></div>
+  </div>
+  <button class="btn" id="goBtn" onclick="run()">🗺️ 起盘</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>奇门排盘中…</p></div>
+<div id="result"></div>
+<p class="note">🔒 纯本地计算 · 拆补法</p>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+async function run(){
+  var b=document.getElementById('goBtn');b.disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('result').innerHTML='';
+  var body={date:document.getElementById('bdate').value,hour:document.getElementById('hour').value};
+  try{
+    var r=await fetch('/qimen',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+    var d=await r.json();
+    document.getElementById('loading').style.display='none';
+    if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
+    var h='<div class="hit"><div class="t">🗺️ 奇门盘</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    document.getElementById('result').innerHTML=h;
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
+  }
+  b.disabled=false;
+}
+async function aiXuan(btn){
+  var out=document.getElementById('aiOut');
+  if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
+  if(out.innerHTML){out.innerHTML='';return}
+  out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var hit=btn.parentNode.querySelector('.hit');
+  var report=hit?hit.innerText:'';
+  if(!report) report=btn.parentNode.innerText;
+  try{
+    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
+    var d=await r.json();
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+}
+</script></body></html>"""
+
+
+@app.route("/qimen", methods=["POST"])
+@login_required
+@rate_limit
+def qimen_api():
+    """奇门遁甲 API"""
+    data = request.get_json(silent=True) or {}
+    date_str = data.get("date", "") or ""
+    hour = data.get("hour", "8")
+    import re as _re
+    if not _re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        return jsonify({"error": "日期格式应为 YYYY-MM-DD"}), 400
+    try:
+        import qimen_steward as _qs
+        y, m, d = [int(x) for x in date_str.split("-")]
+        h = int(hour)
+        if not (0 <= h <= 23):
+            return jsonify({"error": "时辰超出范围"}), 400
+        result = _qs.cast_qimen(y, m, d, h)
+        report = _qs._fmt_pan(result)
+        return jsonify({"report": html.escape(report)[:9000]})
+    except Exception as e:
+        return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
+
+
+@app.route("/bazi-ziwei", methods=["GET"])
+@login_required
+def bazi_ziwei_page():
+    """八字 + 紫微综合印证"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>八字+紫微印证 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:680px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#b8453a}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
+input,select{width:100%;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
+input:focus,select:focus{border-color:#b8453a}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:13px;background:#b8453a;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn:disabled{opacity:.5}
+#loading{display:none;text-align:center;padding:16px;color:#b8453a}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#result{margin-top:12px}
+.hit{background:#fff;border-radius:10px;padding:14px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:13px;white-space:pre-wrap;line-height:1.8;overflow-x:auto}
+.hit .t{font-weight:700;font-size:15px;color:#b8453a;margin-bottom:8px}
+.badge{display:inline-block;background:#b8453a11;color:#b8453a;border:1px solid #b8453a44;padding:2px 10px;border-radius:10px;font-size:11px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#b8453a;text-decoration:none}
+.note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+</style></head><body>
+<h1>⚖️ 八字 + 紫微印证</h1>
+<p class="sub">双体系交叉对账 · 算法精准排盘（不靠 LLM 猜）</p>
+<div class="card">
+  <label>出生日期</label>
+  <input type="date" id="bdate" value="2006-09-22">
+  <div class="row">
+    <div><label>时间</label><input type="time" id="btime" value="07:56"></div>
+    <div><label>性别</label><select id="gender"><option value="male">男</option><option value="female">女</option></select></div>
+  </div>
+  <button class="btn" id="goBtn" onclick="run()">⚖️ 排盘印证</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>双引擎排盘中…</p></div>
+<div id="result"></div>
+<p class="note">🔒 纯本地计算 · 八字+紫微两套独立体系交叉对账</p>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+async function run(){
+  var b=document.getElementById('goBtn');b.disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('result').innerHTML='';
+  var body={date:document.getElementById('bdate').value,time:document.getElementById('btime').value,gender:document.getElementById('gender').value};
+  try{
+    var r=await fetch('/bazi-ziwei',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+    var d=await r.json();
+    document.getElementById('loading').style.display='none';
+    if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
+    var h='<div class="hit"><div class="t">⚖️ 交叉印证结果</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    document.getElementById('result').innerHTML=h;
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
+  }
+  b.disabled=false;
+}
+async function aiXuan(btn){
+  var out=document.getElementById('aiOut');
+  if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
+  if(out.innerHTML){out.innerHTML='';return}
+  out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var hit=btn.parentNode.querySelector('.hit');
+  var report=hit?hit.innerText:'';
+  if(!report) report=btn.parentNode.innerText;
+  try{
+    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
+    var d=await r.json();
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+}
+</script></body></html>"""
+
+
+@app.route("/bazi-ziwei", methods=["POST"])
+@login_required
+@rate_limit
+def bazi_ziwei_api():
+    """八字+紫微交叉印证 API"""
+    data = request.get_json(silent=True) or {}
+    date_str = data.get("date", "") or ""
+    time_str = data.get("time", "12:00") or "12:00"
+    gender = data.get("gender", "male")
+    import re as _re
+    if not _re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        return jsonify({"error": "日期格式应为 YYYY-MM-DD"}), 400
+    try:
+        import bazi_ziwei_steward as _bzs
+        y, m, d = [int(x) for x in date_str.split("-")]
+        hh, mm = [int(x) for x in time_str.split(":")]
+        bazi, ziwei = _bzs.run_chart(y, m, d, hh, mm, gender)
+        report = _bzs.format_report(bazi, ziwei)
+        return jsonify({"report": html.escape(report)[:9000]})
+    except Exception as e:
+        return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
+
+
+@app.route("/steward-new", methods=["GET"])
+@login_required
+def steward_new_page():
+    """新术数：七政四余 + 铁板神数"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>七政四余·铁板神数 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#8e44ad}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
+input,select{width:100%;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
+input:focus,select:focus{border-color:#8e44ad}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.btn{width:100%;padding:13px;background:#8e44ad;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn:disabled{opacity:.5}
+#loading{display:none;text-align:center;padding:16px;color:#8e44ad}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#8e44ad;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#result{margin-top:12px}
+.hit{background:#fff;border-radius:10px;padding:12px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:13px;white-space:pre-wrap;line-height:1.7}
+.hit .t{font-weight:700;font-size:14px;color:#8e44ad;margin-bottom:6px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#8e44ad;text-decoration:none}
+.note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+</style></head><body>
+<h1>🪐 七政四余 · 铁板神数</h1>
+<p class="sub">真实天文学排盘（Swiss Ephemeris 验证）· 纯本地计算</p>
+<div class="card">
+  <label>出生日期</label>
+  <input type="date" id="bdate" value="2006-09-22">
+  <div class="row">
+    <div><label>时间</label><input type="time" id="btime" value="07:56"></div>
+    <div><label>性别</label><select id="gender"><option value="male">男</option><option value="female">女</option></select></div>
+  </div>
+  <label>经度（可选，默认120）</label>
+  <input type="text" id="lon" placeholder="如 114.88（张家口）">
+  <label>纬度（可选）</label>
+  <input type="text" id="lat" placeholder="如 40.82">
+  <button class="btn" id="goBtn" onclick="run()">🔮 起盘</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>排盘中…</p></div>
+<div id="result"></div>
+<p class="note">🔒 纯本地计算，生日不会上传任何外部服务</p>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+async function run(){
+  var b=document.getElementById('goBtn');b.disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('result').innerHTML='';
+  var body={date:document.getElementById('bdate').value,time:document.getElementById('btime').value,gender:document.getElementById('gender').value,lon:document.getElementById('lon').value,lat:document.getElementById('lat').value};
+  try{
+    var r=await fetch('/steward-new',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+    var d=await r.json();
+    document.getElementById('loading').style.display='none';
+    if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
+    var h='';
+    if(d.qizheng)h+='<div class="hit"><div class="t">🪐 七政四余</div>'+d.qizheng+'</div>';
+    if(d.tieban)h+='<div class="hit"><div class="t">📜 铁板神数</div>'+d.tieban+'</div>';
+    if(!h)h='<div class="hit">无结果</div>';
+    h+='<button class="btn" style="background:#8e44ad" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    document.getElementById('result').innerHTML=h;
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
+  }
+  b.disabled=false;
+}
+async function aiXuan(btn){
+  var out=document.getElementById('aiOut');
+  if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
+  if(out.innerHTML){out.innerHTML='';return}
+  out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var report=document.getElementById('result').innerText;
+  try{
+    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
+    var d=await r.json();
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+}
+</script></body></html>"""
+
+
+@app.route("/steward-new", methods=["POST"])
+@login_required
+@rate_limit
+def steward_new_api():
+    """七政四余 + 铁板神数 API"""
+    data = request.get_json(silent=True) or {}
+    date_str = data.get("date", "") or ""
+    time_str = data.get("time", "12:00") or "12:00"
+    gender = data.get("gender", "male")
+    lon = data.get("lon", "")
+    lat = data.get("lat", "")
+    # 输入校验
+    import re as _re
+    if not _re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        return jsonify({"error": "日期格式应为 YYYY-MM-DD"}), 400
+    if not _re.match(r'^\d{1,2}:\d{2}$', time_str):
+        return jsonify({"error": "时间格式应为 HH:MM"}), 400
+    y, m, d = int(date_str[:4]), int(date_str[5:7]), int(date_str[8:10])
+    if not (1 <= y <= 2100 and 1 <= m <= 12 and 1 <= d <= 31):
+        return jsonify({"error": "日期超出范围"}), 400
+    try:
+        import new_tools_steward as _nts
+        lon_f = float(lon) if lon else None
+        lat_f = float(lat) if lat else None
+        out = {}
+        try:
+            q = _nts.cast_qizheng(date_str, time_str, gender, lat=lat_f, lon=lon_f)
+            out["qizheng"] = html.escape(_nts._fmt_qizheng(q))[:4000]
+        except Exception as e:
+            out["qizheng"] = f"<span style='color:#c0392b'>七政四余: {html.escape(str(e))[:150]}</span>"
+        try:
+            t = _nts.cast_tieban(date_str, time_str, gender, lat=lat_f, lon=lon_f)
+            out["tieban"] = html.escape(_nts._fmt_tieban(t))[:4000]
+        except Exception as e:
+            out["tieban"] = f"<span style='color:#c0392b'>铁板神数: {html.escape(str(e))[:150]}</span>"
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
+
+
+@app.route("/local-vision", methods=["GET"])
+@login_required
+def local_vision_page():
+    """本地识图：纯本地 CLIP 识别，图片不上传任何外部服务器"""
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>本地识图 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#27ae60}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+#drop{width:100%;padding:30px 0;text-align:center;border:2px dashed #27ae6066;border-radius:12px;color:#27ae60;cursor:pointer;background:#f4fdf7}
+#drop.drag{background:#e0f7e9;border-color:#27ae60}
+#imgPreview{max-width:100%;max-height:260px;border-radius:10px;margin-top:10px;display:none}
+.btn{width:100%;padding:14px;background:#27ae60;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px}
+.btn:disabled{opacity:.5}
+#result{margin-top:12px}
+.kw{display:inline-block;background:#27ae6022;color:#27ae60;padding:4px 10px;border-radius:8px;font-size:12px;margin:4px 4px 0 0}
+.score-bar{height:6px;background:#eee;border-radius:4px;margin-top:4px;overflow:hidden}
+.score-bar>div{height:100%;background:#27ae60;border-radius:4px}
+.hit{background:#fff;border-radius:10px;padding:12px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.hit .t{font-weight:600;font-size:14px}
+.hit .s{font-size:13px;color:#666;margin-top:4px}
+.badge{display:inline-block;background:#27ae6011;color:#27ae60;border:1px solid #27ae6044;padding:2px 10px;border-radius:10px;font-size:11px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#27ae60;text-decoration:none}
+#loading{display:none;text-align:center;padding:20px;color:#27ae60}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#27ae60;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+<h1>🔍 本地识图</h1>
+<p class="sub">纯本地 CLIP 识别 · 图片不出服务器 · 免费无限量</p>
+<div class="card">
+  <div id="drop" onclick="document.getElementById('file').click()">
+    <div style="font-size:32px">🖼️</div>
+    <div>点击选择图片，或拖拽到这里</div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+  </div>
+  <img id="imgPreview">
+  <button class="btn" id="goBtn" disabled onclick="analyze()">🔍 本地识别</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>本地 CLIP 正在看这张图…</p></div>
+<div id="result"></div>
+<p class="footer"><a href="/tools">← 返回工具台</a></p>
+<script>
+var file = document.getElementById('file');
+var drop = document.getElementById('drop');
+var preview = document.getElementById('imgPreview');
+var goBtn = document.getElementById('goBtn');
+drop.addEventListener('dragover', function(e){e.preventDefault();drop.classList.add('drag')});
+drop.addEventListener('dragleave', function(){drop.classList.remove('drag')});
+drop.addEventListener('drop', function(e){e.preventDefault();drop.classList.remove('drag');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
+file.addEventListener('change', function(){if(file.files[0])setFile(file.files[0])});
+function setFile(f){
+  if(!f.type.startsWith('image/')){alert('请选择图片文件');return}
+  goBtn.disabled = false;
+  preview.src = URL.createObjectURL(f);
+  preview.style.display = 'block';
+  window._imgFile = f;
+}
+async function analyze(){
+  var f = window._imgFile;
+  if(!f) return;
+  goBtn.disabled = true;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result').innerHTML = '';
+  var fd = new FormData();
+  fd.append('image', f);
+  try{
+    var res = await fetch('/local-vision', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}});
+    var data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    if(data.error){document.getElementById('result').innerHTML = '<div class="hit" style="color:#c0392b">❌ ' + data.error + '</div>';goBtn.disabled=false;return}
+    var h = '<div class="hit"><div class="t">🔒 本地识别结果</div><div class="s">耗时 ' + (data.elapsed||0) + 's · 图片已在本地处理，未上传任何外部服务器</div>'; 
+    data.results.forEach(function(r){
+      var pct = Math.round(r.score * 100);
+      h += '<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>' + r.label + '</span><span style="color:#888">' + pct + '%</span></div><div class="score-bar"><div style="width:' + pct + '%"></div></div></div>';
+    });
+    h += '</div>';
+    document.getElementById('result').innerHTML = h;
+  }catch(e){
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('result').innerHTML = '<div class="hit" style="color:#c0392b">❌ 请求失败: ' + e.message + '</div>';
+  }
+  goBtn.disabled = false;
+}
+</script></body></html>"""
+
+
+@app.route("/local-vision", methods=["POST"])
+@login_required
+def local_vision_api():
+    """本地识图 API：纯本地 CLIP 识别，返回 top 结果"""
+    import base64 as _b64
+    img_b64 = ''
+    if request.json and request.json.get('image'):
+        img_b64 = request.json['image']
+    elif 'image' in request.files:
+        f = request.files['image']
+        img_b64 = _b64.b64encode(f.read()).decode()
+    if not img_b64:
+        return jsonify({'error': '未收到图片'}), 400
+
+    import time as _t
+    t0 = _t.time()
+    try:
+        import sys as _sys
+        _sys.path.insert(0, '/home/honor/.openclaw/workspace/vision-lab')
+        import cn_recognizer as _cnr
+        _pool = [
+            "古籍书页", "药方", "穴位图", "人体经络图", "舌象", "书法作品", "人物肖像",
+            "山水画", "草药", "针灸", "医疗笔记", "五行图", "太极图", "人体器官图",
+            "骨骼图", "名言", "海报", "书籍封面", "风景照片", "二维码", "建筑", "植物",
+            "诊室", "药丸", "茶叶", "佛像", "印章", "星空", "美食", "动物", "画作",
+        ]
+        tmp_path = '/tmp/local_vision_tmp.jpg'
+        with open(tmp_path, 'wb') as fh:
+            fh.write(_b64.b64decode(img_b64))
+        top = _cnr.recognize(tmp_path, _pool, top_k=5)
+        import os as _os2
+        try:
+            _os2.remove(tmp_path)
+        except Exception:
+            pass
+        elapsed = round(_t.time() - t0, 1)
+        results = [{'label': cn, 'score': round(sc, 3)} for cn, _, sc in top]
+        return jsonify({'results': results, 'elapsed': elapsed})
+    except Exception as e:
+        return jsonify({'error': '本地识别失败: ' + str(e)[:150]}), 500
+
+
+@app.route("/philosophy-image", methods=["GET"])
+@login_required
+def philosophy_image_page():
+    return """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>以图搜哲医 · 莫名心小站</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:22px;color:#8e44ad}
+.sub{color:#888;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+#drop{width:100%;padding:30px 0;text-align:center;border:2px dashed #8e44ad66;border-radius:12px;color:#8e44ad;cursor:pointer;background:#faf7ff}
+#drop.drag{background:#f0e6ff;border-color:#8e44ad}
+#imgPreview{max-width:100%;max-height:260px;border-radius:10px;margin-top:10px;display:none}
+.btn{width:100%;padding:14px;background:#8e44ad;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px}
+.btn:disabled{opacity:.5}
+#result{margin-top:12px}
+.kw{display:inline-block;background:#8e44ad22;color:#8e44ad;padding:4px 10px;border-radius:8px;font-size:12px;margin:4px 4px 0 0}
+.hit{background:#fff;border-radius:10px;padding:12px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.hit .t{font-weight:600;font-size:14px}
+.hit .l{font-size:11px;color:#8e44ad}
+.hit .s{font-size:13px;color:#666;margin-top:4px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
+a{color:#8e44ad;text-decoration:none}
+#loading{display:none;text-align:center;padding:20px;color:#8e44ad}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#8e44ad;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+<h1>📷 以图搜哲医</h1>
+<p class="sub">上传一张图片（医书页、药方、症状笔记、名言、海报…），AI 识别后自动匹配医书/东哲/西哲/道归</p>
+<div class="card">
+  <div id="drop" onclick="document.getElementById('file').click()">
+    <div style="font-size:32px">🖼️</div>
+    <div>点击选择图片，或拖拽到这里</div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+  </div>
+  <img id="imgPreview">
+  <button class="btn" id="goBtn" disabled onclick="analyze()">🔍 识别并搜索</button>
+</div>
+<div id="loading"><div class="spinner"></div><p>GLM-4V 正在看这张图…</p></div>
+<div id="result"></div>
+<p class="footer"><a href="/">← 返回小站</a></p>
+<script>
+var file = document.getElementById('file');
+var drop = document.getElementById('drop');
+var preview = document.getElementById('imgPreview');
+var goBtn = document.getElementById('goBtn');
+drop.addEventListener('dragover', function(e){e.preventDefault();drop.classList.add('drag')});
+drop.addEventListener('dragleave', function(){drop.classList.remove('drag')});
+drop.addEventListener('drop', function(e){e.preventDefault();drop.classList.remove('drag');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
+file.addEventListener('change', function(){if(file.files[0])setFile(file.files[0])});
+function setFile(f){
+  if(!f.type.startsWith('image/')){alert('请选择图片文件');return}
+  goBtn.disabled = false;
+  preview.src = URL.createObjectURL(f);
+  preview.style.display = 'block';
+  window._imgFile = f;
+}
+async function analyze(){
+  var f = window._imgFile;
+  if(!f) return;
+  goBtn.disabled = true;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result').innerHTML = '';
+  var fd = new FormData();
+  fd.append('image', f);
+  try{
+    var res = await fetch('/philosophy-image', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}});
+    var data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    if(data.error){document.getElementById('result').innerHTML = '<div class="hit" style="color:#c0392b">❌ ' + data.error + '</div>';goBtn.disabled=false;return}
+    var h = '<div class="hit"><div class="t">🤖 AI 识别</div><div class="s">' + (data.text_content || data.vision_text || '') + '</div><div style="margin-top:6px">' + (data.keywords||[]).map(function(k){return '<span class="kw">' + k + '</span>'}).join('') + '</div></div>';
+    if(data.degraded){
+      h = '<div class="hit" style="border-left:3px solid #e67e22"><div class="t">⚠️ 本地兑底模式</div><div class="s">GLM-4V 暂时不可用，以下为本地 CLIP 识别的图片类别（未做文字提取）</div><div style="margin-top:6px">' + (data.local_hints||[]).map(function(k){return '<span class="kw" style="background:#e67e2222;color:#e67e22">' + k + '</span>'}).join('') + '</div></div>';
+    }
+    if(data.local_hints && data.local_hints.length && !data.degraded){
+      h += '<div class="hit"><div class="t">🔒 本地识别（纯本地CLIP）</div><div style="margin-top:6px">' + data.local_hints.map(function(k){return '<span class="kw" style="background:#27ae6022;color:#27ae60">' + k + '</span>'}).join('') + '</div></div>';
+    }
+    h += '<div class="hit"><div class="t">📚 匹配结果 (' + data.results.length + ')</div></div>';
+    data.results.forEach(function(r){
+      h += '<div class="hit"><div class="t">' + r.title + '</div><div class="l">' + r.label + ' · 命中:' + r.kw + '</div><div class="s">' + r.snippet + '</div></div>';
+    });
+    document.getElementById('result').innerHTML = h;
+  }catch(e){
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('result').innerHTML = '<div class="hit" style="color:#c0392b">❌ 请求失败: ' + e.message + '</div>';
+  }
+  goBtn.disabled = false;
+}
+</script></body></html>"""
+
+
+@app.route("/philosophy-image", methods=["POST"])
+@login_required
+def philosophy_image():
+    """以图搜哲医：上传图片 → 本地CLIP预判 + GLM-4V 识别 → 匹配医书/东哲/西哲/道归"""
+    import base64, io, json as _json
+    from urllib.request import Request, urlopen
+
+    # 1. 接收图片（base64 或 multipart file）
+    img_b64 = ''
+    if request.json and request.json.get('image'):
+        img_b64 = request.json['image']
+    elif 'image' in request.files:
+        f = request.files['image']
+        import base64 as _b64
+        img_b64 = _b64.b64encode(f.read()).decode()
+    else:
+        return jsonify({'error': '未收到图片'}), 400
+
+    if not img_b64:
+        return jsonify({'error': '图片为空'}), 400
+
+    # 2. 本地 CLIP 预判（纯本地、免费、无限量）——识别图片类别，作为关键词增强
+    local_hints = []
+    local_err = ''
+    try:
+        import sys as _sys
+        _sys.path.insert(0, '/home/honor/.openclaw/workspace/vision-lab')
+        import cn_recognizer as _cnr
+        # 标签池：中医/哲学/通用类别
+        _pool = [
+            "古籍书页", "药方", "穴位图", "人体经络图", "舌象", "书法作品", "人物肖像",
+            "山水画", "草药", "针灸", "医疗笔记", "五行图", "太极图", "人体器官图",
+            "骨骼图", "名言", "海报", "书籍封面", "风景照片", "二维码", "建筑", "植物",
+            "诊室", "药丸", "茶叶", "佛像", "印章", "星空", "美食", "动物", "画作",
+        ]
+        img_bytes = base64.b64decode(img_b64)
+        tmp_path = '/tmp/philosophy_image_tmp.jpg'
+        with open(tmp_path, 'wb') as fh:
+            fh.write(img_bytes)
+        top = _cnr.recognize(tmp_path, _pool, top_k=3)
+        local_hints = [cn for cn, _, sc in top if sc > 0.18]
+        import os as _os2
+        try:
+            _os2.remove(tmp_path)
+        except Exception:
+            pass
+    except Exception as e:
+        local_err = str(e)[:120]
+
+    # 2b. 读 Z.ai API Key
+    import os as _os
+    key = _os.environ.get('ZAI_API_KEY', '')
+    if not key:
+        try:
+            cfg = _json.load(open('/home/honor/.openclaw/openclaw.json', encoding='utf-8'))
+            key = cfg.get('models', {}).get('profiles', {}).get('zai:default', {}).get('key', '')
+        except Exception:
+            pass
+    if not key:
+        return jsonify({'error': 'Z.ai API Key 未配置'}), 500
+
+    # 3. 调 GLM-4V 识别图片 → 提取哲学关键词
+    prompt = ('请仔细分析这张图片。如果图片包含文字（书籍页、名言、书法、海报、药方、症状记录、穴位图等），'
+              '请提取其中的文字内容。然后用 3-6 个关键词概括这张图片最可能关联的主题，'
+              '可以涵盖哲学（存在主义、虚无、自由、道德、尼采、道家、儒家等）'
+              '或中医/医学（证型、脏腑、药名、穴位、病名、方剂、五行等）。'
+              '输出格式：先给"文字内容："，再给"关键词："，关键词用顿号分隔。')
+
+    data_url = 'data:image/jpeg;base64,' + img_b64
+    vision_text = ''
+    vision_err = ''
+    # 多模型轮询：flash → thinking → plus
+    for model in ['glm-4v-flash', 'glm-4.1v-thinking-flash', 'glm-4v-plus']:
+        payload = {
+            'model': model,
+            'messages': [
+                {'role': 'user', 'content': [
+                    {'type': 'image_url', 'image_url': {'url': data_url}},
+                    {'type': 'text', 'text': prompt}
+                ]}
+            ]
+        }
+        try:
+            req = Request('https://open.bigmodel.cn/api/paas/v4/chat/completions',
+                          data=_json.dumps(payload).encode(),
+                          headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
+            resp = urlopen(req, timeout=90)
+            out = _json.loads(resp.read().decode())
+            vision_text = out['choices'][0]['message']['content']
+            if vision_text and len(vision_text.strip()) > 2:
+                break
+        except Exception as e:
+            vision_err = str(e)[:120]
+            continue
+    if not vision_text:
+        # GLM 失败时：用本地 CLIP 预判兑底，让功能在无 API 时也能工作
+        if local_hints:
+            return jsonify({
+                'vision_text': '⚠️ GLM-4V 识别失败（' + (vision_err or '未知错误') + '），已用本地 CLIP 类别识别兑底',
+                'text_content': '',
+                'keywords': local_hints,
+                'results': [],
+                'local_hints': local_hints,
+                'local_err': vision_err if vision_err else None,
+                'degraded': True,
+            }), 200
+        return jsonify({'error': '视觉识别失败: ' + vision_err}), 500
+
+    # 4. 解析关键词（顿号/逗号/空格分隔）
+    import re as _re
+    kw_match = _re.search(r'关键词[：:]\s*(.+)', vision_text)
+    kw_text = kw_match.group(1) if kw_match else vision_text
+    keywords = [k.strip() for k in _re.split(r'[、，,;；\s]+', kw_text) if k.strip() and len(k.strip()) < 20][:6]
+    text_part = vision_text.split('关键词')[0].replace('文字内容：', '').strip()
+    # 兜底：如果关键词没解析出来，从全文提取短词
+    if not keywords:
+        words = _re.findall(r'[\u4e00-\u9fff]{2,8}', vision_text)
+        keywords = list(dict.fromkeys(words))[:6]
+
+    # 4b. 本地 CLIP 预判关键词：仅展示用，不混入搜索关键词（避免类别词污染医书搜索结果）
+    #     搜索仍以 GLM 提取的词为主
+    if local_hints:
+        # 保留原有搜索关键词逻辑，本地词只返回给前端展示
+        pass
+
+    # 5. 用关键词搜哲学库（东哲古籍 + 西哲SEP + 道归）
+    base = '/home/honor/.openclaw/workspace'
+    hits = []
+    seen = set()
+    search_dirs = [
+        (base + '/xin_sources/cleaned/素问', '医书·素问'),
+        (base + '/xin_sources/cleaned/灵枢', '医书·灵枢'),
+        (base + '/xin_sources/cleaned/伤寒', '医书·伤寒'),
+        (base + '/xin_sources/cleaned/金匮', '医书·金匮'),
+        (base + '/xin_sources/cleaned/本草', '医书·本草'),
+        (base + '/xin_sources/cleaned/综合', '医书·综合'),
+        (base + '/xin_sources/tcmoc', '医书·TCM'),
+        (base + '/xin_sources/cleaned', '东哲古籍'),
+        (base + '/道归', '道归'),
+        (base + '/phil_texts', '西哲文本'),
+    ]
+    for dpath, label in search_dirs:
+        if not os.path.isdir(dpath):
+            continue
+        for root, _, files in os.walk(dpath):
+            for f in files:
+                if not (f.endswith('.md') or f.endswith('.txt')):
+                    continue
+                if 'copyright' in f or 'privacy' in f:
+                    continue
+                fp = os.path.join(root, f)
+                try:
+                    with open(fp, 'r', encoding='utf-8', errors='ignore') as fh:
+                        content = fh.read(3000)
+                    for kw in keywords:
+                        if kw in content:
+                            title = f.replace('.md', '').replace('.txt', '').replace('_', ' ')[:50]
+                            if title in seen:
+                                break
+                            seen.add(title)
+                            idx = content.find(kw)
+                            s = max(0, idx - 60)
+                            e = min(len(content), idx + len(kw) + 100)
+                            snippet = content[s:e].replace('\n', ' ').strip()
+                            hits.append({'title': title, 'label': label, 'snippet': snippet[:300], 'kw': kw})
+                            break
+                except Exception:
+                    continue
+                if len(hits) >= 10:
+                    break
+            if len(hits) >= 10:
+                break
+        if len(hits) >= 10:
+            break
+
+    return jsonify({
+        'vision_text': vision_text[:500],
+        'text_content': text_part[:300],
+        'keywords': keywords,
+        'results': hits[:10],
+        'local_hints': local_hints,
+        'local_err': local_err if local_err else None,
+    })
 
 
 @app.route("/upload", methods=["GET", "POST"])
@@ -1443,6 +2897,67 @@ def handle_404(e):
 
 
 
+@app.route("/poems")
+@login_required
+def poems():
+    """即兴创作 · 心哥的诗"""
+    import os
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    POEM_DIR = os.path.join(BASE, '心哥的诗')
+
+    def esc(t):
+        return str(t)[:8000]
+
+    poems_list = []
+    if os.path.isdir(POEM_DIR):
+        for f in sorted(os.listdir(POEM_DIR)):
+            if f.endswith('.txt'):
+                title = f.replace('.txt', '')
+                try:
+                    with open(os.path.join(POEM_DIR, f), encoding='utf-8') as fh:
+                        content = fh.read()
+                    poems_list.append({'title': title, 'file': f, 'content': content})
+                except Exception:
+                    pass
+
+    poems_list.sort(key=lambda p: len(p['content']))
+    p = request.args.get('p', '')
+    html = """<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>即兴创作 / 莫名心小站</title>
+<style>
+body{font-family:"KaiTi","STKaiti",serif;background:#faf8f5;color:#1a1a2e;max-width:800px;margin:0 auto;padding:20px;line-height:2}
+h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px;font-family:system-ui,sans-serif}
+.nav a{display:inline-block;margin:4px;padding:8px 16px;background:#1a1a2e;color:#faf8f5;text-decoration:none;border-radius:6px;font-family:system-ui,sans-serif;font-size:14px}
+.nav a:hover{background:#8b0000}
+.poem-card{background:#fff;padding:16px 20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-top:12px;cursor:pointer;display:block;text-decoration:none;color:inherit}
+.poem-card:hover{border-left:4px solid #8b0000}
+.poem-title{font-size:18px;font-weight:bold;color:#8b0000}
+.poem-preview{color:#555;font-size:14px;margin-top:6px;white-space:pre-wrap}
+.poem-full{background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);margin-top:20px;font-size:17px;white-space:pre-wrap}
+.poem-full .pt{font-size:22px;font-weight:bold;color:#8b0000;margin-bottom:16px;text-align:center}
+.back{display:inline-block;margin-top:16px;color:#4a7dff;text-decoration:none}
+</style></head><body>
+<h1>🔥 即兴创作</h1>
+<div class="nav"><a href="/">← 返回小站</a></div>
+"""
+    if p:
+        poem = next((x for x in poems_list if x['file'] == p), None)
+        if poem:
+            html += f'<div class="poem-full"><div class="pt">《{esc(poem["title"])}》</div>{esc(poem["content"])}</div>'
+            html += '<a class="back" href="/poems">← 返回诗列表</a>'
+        else:
+            html += '<p>未找到这首诗</p><a class="back" href="/poems">← 返回</a>'
+    else:
+        html += f'<p style="color:#888;font-family:system-ui,sans-serif">共 {len(poems_list)} 篇 · 心哥的即兴</p>'
+        for poem in poems_list:
+            preview = poem['content'].replace('\n', ' ')[:80]
+            html += f'<a class="poem-card" href="/poems?p={poem["file"]}"><div class="poem-title">《{esc(poem["title"])}》</div><div class="poem-preview">{esc(preview)}...</div></a>'
+    html += '</body></html>'
+    return html
+
+
 @app.route("/extensions")
 @login_required
 def extensions():
@@ -1508,8 +3023,8 @@ const EXTENSIONS = [
         on: true, color: "#27ae60"
     },
     {
-        icon: "📷", name: "以图搜哲学", desc: "上传图片，自动搜索相关哲思条目与概念。",
-        on: false, color: "#8e44ad"
+        icon: "📷", name: "以图搜哲学", desc: "上传图片 → AI识别 → 匹配东哲/西哲/道归。GLM-4V 驱动。",
+        on: true, color: "#8e44ad"
     },
     {
         icon: "🔍", name: "哲思增强搜索", desc: "SEP 102条全文检索 + 模糊匹配 + AI 推荐。",
@@ -1528,7 +3043,7 @@ const EXTENSIONS = [
         on: true, color: "#2c3e50"
     },
     {
-        icon: "📊", name: "八字排盘", desc: "fortune-skill 引擎，排大运、起运、十神。",
+        icon: "📊", name: "八字排盘", desc: "八套术数·纯本地运行·免费",
         on: true, color: "#c0392b"
     },
     {
@@ -1580,7 +3095,7 @@ def api_tts():
     return jsonify(result)
 
 
-_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">七套术数引擎 · 输入生达即可起盘</p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><input type=\"date\" name=\"bdate\" value=\"2026-07-28\" required></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-bottom:14px">
+_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">八套术数引擎 · 输入生达即可起盘\n<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;padding:10px 14px;margin:10px 0 14px;font-size:13px;color:#2e7d32">🔒 <b>纯本地运行</b>：排盘全部在本服务器计算，你的生日完全不会上传到任何外部服务器。数据不出这台机器。</div></p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><input type=\"date\" name=\"bdate\" value=\"2026-07-28\" required></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-bottom:14px">
 <label>模式</label>
 <div style="display:flex;gap:10px;margin-top:4px">
 <label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
@@ -1635,10 +3150,14 @@ _STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"U
 </label>
 </div>
 </div>
-<label>术数</label>\n<select name=\"mode\">\n<option value=\"bazi\">八字 — 子平八字排盘</option>\n<option value=\"ziwei\">紫微斗数 — 紫微课盘</option>\n<option value=\"qimen\">奇门道甲 — 时家奇门盘</option>\n<option value=\"liuren\">大六壬 — 六壬课经</option>\n<option value=\"meihua\">梅花易数 — 梅花起卦</option><option value="jinkoujue">金口诀 — 金口诀课经</option><option value="wuyunliuqi">五运六气 — 岁运客主加临</option><option value="xiaoliuren">小六壬 — 道传起卦</option>\n<option value=\"all\">全量 — 所有术数</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n</body></html>"""
+<label>术数</label>\n<select name=\"mode\">\n<option value=\"bazi\">八字 — 子平八字排盘</option>\n<option value=\"ziwei\">紫微斗数 — 紫微课盘</option>\n<option value=\"qimen\">奇门道甲 — 时家奇门盘</option>\n<option value=\"liuren\">大六壬 — 六壬课经</option>\n<option value=\"meihua\">梅花易数 — 梅花起卦</option><option value="jinkoujue">金口诀 — 金口诀课经</option><option value="wuyunliuqi">五运六气 — 岁运客主加临</option><option value="xiaoliuren">小六壬 — 道传起卦</option>\n<option value=\"all\">全量 — 所有术数</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n
+<div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:10px;padding:10px 14px;margin-top:16px;font-size:12px;color:#8d6e63;line-height:1.7">
+⚠️ <b>免责声明</b>：本站所有术数排盘结果（八字/紫微/奇门/六壬/梅花/金口诀/五运六气/小六壬）仅供<b>娱乐与传统文化研究</b>，不构成任何医疗、投资、法律、婚恋或重大决策建议。排盘为纯本地计算，数据不出本机；AI 解读由大模型生成，可能存在误差。请理性看待，一切以现实为准，风险自担。
+</div></body></html>"""
 
 @app.route("/steward", methods=["GET", "POST"])
 @login_required
+@rate_limit
 def steward():
     """赛博玄学管家"""
     import subprocess as _sp
@@ -1714,10 +3233,10 @@ def steward():
                     p = _jm.dumps({
                         "model": "deepseek-chat",
                         "messages": [
-                            {"role": "system", "content": "你是一位玄学命理师。根据用户提供的排盘数据做解读。单人模式：提炼3-5条要点，通俗易懂。双人模式：分析两人五行匹配度、性格互补性，结合关系类型给出具体建议。语气平和理性，不超过500字。"},
+                            {"role": "system", "content": "你是一位玄学命理师。根据用户提供的排盘数据做深度解读。单人模式：提炼5-8条要点，把盘面关键信息（格局、星曜、五行、宫位、大运等）尽量解读完整，通俗易懂。双人模式：分析两人五行匹配度、性格互补性，结合关系类型给出具体建议。语气平和理性，解读要完整，不要草草收尾。"},
                             {"role": "user", "content": f"{'双人合盘(' + relation + ')' if dual == 'double' else '这是'} {mode}排盘结果：\n{raw[:10000]}"}
                         ],
-                        "max_tokens": 800
+                        "max_tokens": 3000
                     }).encode()
                     req = _ur.Request("https://api.deepseek.com/chat/completions",
                                      data=p,
@@ -1753,8 +3272,16 @@ def steward():
                     h += '<div class="card"><div class="ctitle">\U0001f4cb \u6392\u76d8\u6570\u636e</div><div class="intro">' + esc(raw[:2000]) + '</div></div>'
                 h += '<span class="tog" onclick="var r=document.getElementById(\'r\');r.style.display=r.style.display==\'none\'?\'block\':\'none\'">\U0001f50d \u67e5\u770b\u539f\u59cb\u6570\u636e</span>'
                 h += '<div id="r" class="card" style="display:none"><div class="raw-box">' + esc(raw[:5000]) + '</div></div>'
+                h += '<button class="btn" style="margin-bottom:12px" onclick="aiDeep()">\U0001f52e AI \u6df1\u5ea6\u5206\u6790</button><div id="aiOut"></div>'
                 h += '<a class="btn" href="/steward">\u518d\u7b97\u4e00\u6b21</a>'
-                h += '<div class="footer"><a href="/tools">\u2190 \u5de5\u5177\u53f0</a></div></body></html>'
+                h += '<div class="footer"><a href="/tools">\u2190 \u5de5\u5177\u53f0</a></div>'
+                h += '<script>var aiRaw=' + json.dumps(raw[:6000], ensure_ascii=False) + ';'
+                h += 'async function aiDeep(){var out=document.getElementById(\'aiOut\');if(out.innerHTML){out.innerHTML=\'\';return}'
+                h += 'out.innerHTML=\'<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>\';'
+                h += 'try{var r=await fetch(\'/ai-read\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Requested-With\':\'XMLHttpRequest\'},body:JSON.stringify({text:aiRaw.slice(0,6000),scene:\'xuanxue_general\'})});var d=await r.json();'
+                h += 'out.innerHTML=d.error?\'<div style="padding:12px;color:#c0392b">\'+d.error+\'</div>\':\'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">\'+d.answer.replace(/\\n/g,\'<br>\')+\'</div>\';}'
+                h += 'catch(e){out.innerHTML=\'<div style="padding:12px;color:#c0392b">请求失败</div>\';}}</script>'
+                h += '</body></html>'
                 return h
             
             if is_form:
@@ -1834,6 +3361,12 @@ h1{font-size:1.3rem;margin-bottom:4px}
 <div class="card-desc">岁运·六气·时位推算</div>
 </a>
 
+<a href="/notes" class="card">
+<div class="card-icon">📝</div>
+<div class="card-name">学习笔记</div>
+<div class="card-desc">素问笔记·数字中医有感</div>
+</a>
+
 <a href="/yunqi-eval" class="card">
 <div class="card-icon">🥣</div>
 <div class="card-name">食疗评价</div>
@@ -1846,10 +3379,10 @@ h1{font-size:1.3rem;margin-bottom:4px}
 <div class="card-desc">102条SEP全文检索</div>
 </a>
 
-<a href="/philosophy-fetch" class="card">
-<div class="card-icon">🌐</div>
-<div class="card-name">在线哲思</div>
-<div class="card-desc">抓取新SEP条目</div>
+<a href="/gutenberg" class="card">
+<div class="card-icon">📚</div>
+<div class="card-name">古登堡经典</div>
+<div class="card-desc">柏拉图·亚里士多德·康德·尼采</div>
 </a>
 
 <a href="/daogui3" class="card">
@@ -1865,10 +3398,87 @@ h1{font-size:1.3rem;margin-bottom:4px}
 <span class="badge badge-new">NEW</span>
 </a>
 
+<a href="/steward-new" class="card">
+<div class="card-icon">🪐</div>
+<div class="card-name">七政·铁板</div>
+<div class="card-desc">七政四余·铁板神数</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/bazi-ziwei" class="card">
+<div class="card-icon">⚖️</div>
+<div class="card-name">八字·紫微印证</div>
+<div class="card-desc">双体系交叉对账</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/qimen" class="card">
+<div class="card-icon">🗺️</div>
+<div class="card-name">奇门遁甲</div>
+<div class="card-desc">九宫格局·拆补法</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/liuyao" class="card">
+<div class="card-icon">⚡</div>
+<div class="card-name">六爻纳甲</div>
+<div class="card-desc">三币摇卦·六亲神煞</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/jyotish" class="card">
+<div class="card-icon">🌏</div>
+<div class="card-name">印占·西洋·太乙·梅花</div>
+<div class="card-desc">四体系排盘</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/poetry" class="card">
+<div class="card-icon">🏮</div>
+<div class="card-name">诗词查询</div>
+<div class="card-desc">31万诗词·诗经·论语·本地检索</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/kx" class="card">
+<div class="card-icon">📚</div>
+<div class="card-name">知识库问答</div>
+<div class="card-desc">道归·医书·哲学RAG</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/theory" class="card">
+<div class="card-icon">🏛️</div>
+<div class="card-name">理论体系</div>
+<div class="card-desc">六套理论·修正版</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
 <a href="/classic-view/" class="card">
 <div class="card-icon">📜</div>
 <div class="card-name">经典古籍</div>
 <div class="card-desc">素问50卷·灵枢·本草</div>
+</a>
+
+<a href="/philosophy-image" class="card">
+<div class="card-icon">📷</div>
+<div class="card-name">以图搜哲医</div>
+<div class="card-desc">识图匹配医书·哲思·道归</div>
+<span class="badge badge-ok">本地+AI</span>
+</a>
+
+<a href="/local-vision" class="card">
+<div class="card-icon">🔍</div>
+<div class="card-name">本地识图</div>
+<div class="card-desc">纯本地CLIP·免费无限量</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/toolbox" class="card">
+<div class="card-icon">🧰</div>
+<div class="card-name">百宝囊</div>
+<div class="card-desc">图片·PDF·文本·纯本地工具</div>
+<span class="badge badge-new">NEW</span>
 </a>
 
 <a href="/ask" class="card">
@@ -1887,6 +3497,12 @@ h1{font-size:1.3rem;margin-bottom:4px}
 <div class="card-icon">⚒️</div>
 <div class="card-name">锻因缘</div>
 <div class="card-desc">平行世界·命运之锤</div>
+</a>
+
+<a href="/poems" class="card">
+<div class="card-icon">🔥</div>
+<div class="card-name">即兴创作</div>
+<div class="card-desc">心哥的诗 · 火苍龙骨</div>
 </a>
 
 <a class="card" style="background:#1a1a2e;color:#fff">
