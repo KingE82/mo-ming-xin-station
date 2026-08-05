@@ -141,19 +141,7 @@ h1 {{ font-size:20px; margin:8px 0; }}
 </html>'''
 
 
-def _get_md_render_js():
-    """从 app.py 提取 mdRender（单一来源，避免循环 import）"""
-    import re
-    src_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.py')
-    try:
-        with open(src_path, encoding='utf-8') as f:
-            src = f.read()
-        m = re.search(r'_MD_RENDER_JS = """(.*?)"""\n', src, re.S)
-        if m:
-            return m.group(1)
-    except Exception:
-        pass
-    return ''
+from md_render_js import MD_RENDER_JS
 
 
 def _render_doc(doc_id):
@@ -184,7 +172,7 @@ def _render_doc(doc_id):
     import json as _json
     safe_title = html_mod.escape(title)
     body_json = _json.dumps(content, ensure_ascii=False)
-    md_js = _get_md_render_js()
+    md_js = MD_RENDER_JS
 
     return f'''<!DOCTYPE html>
 <html lang="zh-CN">
