@@ -7,7 +7,7 @@ function mdEsc(t){
 }
 function mdInline(t){
   t = mdEsc(t);
-  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/\*\*([\s\S]+?)\*\*/g, '<b>$1</b>');
   t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
   return t;
 }
@@ -60,7 +60,7 @@ function mdRender(text){
     else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
     // ==== 列表 ====
     else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
-    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; olIdx = 0; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
     // ==== 空行/段落 ====
     else if(l.trim()===''){ closeList(); }
     else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
