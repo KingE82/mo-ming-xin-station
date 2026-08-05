@@ -4640,7 +4640,13 @@ h1{font-size:1.35rem;color:var(--accent);margin-bottom:4px}
 <a href="/philosophy" class="card">
 <div class="card-icon">📖</div>
 <div class="card-name">哲思文库</div>
-<div class="card-desc">102条SEP全文检索</div>
+<div class="card-desc">SEP斯坦福哲学百科·1864词条</div>
+</a>
+
+<a href="/daogui" class="card">
+<div class="card-icon">🏛️</div>
+<div class="card-name">道归文库</div>
+<div class="card-desc">全体系文档 · 哲学对撞10场</div>
 </a>
 
 <a href="/gutenberg" class="card">
