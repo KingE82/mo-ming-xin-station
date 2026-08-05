@@ -382,10 +382,10 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
 
 <div class="header">
   <nav style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:.85rem">
-    <a href="/" style="color:#4a7dff;text-decoration:none">🏠 首页</a>
-    <a href="/tools" style="color:#4a7dff;text-decoration:none">🧩 工具台</a>
-    <a href="/daogui3" style="color:#4a7dff;text-decoration:none">🏛️ 道归3.0</a>
-    <a href="/extensions" style="color:#4a7dff;text-decoration:none">🧩 扩展</a>
+    <a href="/" style="display:inline-block;padding:6px 14px;background:var(--card);border:1px solid var(--accent-light);border-radius:999px;color:var(--accent);text-decoration:none;transition:background .15s">🏠 首页</a>
+    <a href="/tools" style="display:inline-block;padding:6px 14px;background:var(--card);border:1px solid var(--accent-light);border-radius:999px;color:var(--accent);text-decoration:none;transition:background .15s">🧩 工具台</a>
+    <a href="/daogui3" style="display:inline-block;padding:6px 14px;background:var(--card);border:1px solid var(--accent-light);border-radius:999px;color:var(--accent);text-decoration:none;transition:background .15s">🏛️ 道归3.0</a>
+    <a href="/extensions" style="display:inline-block;padding:6px 14px;background:var(--card);border:1px solid var(--accent-light);border-radius:999px;color:var(--accent);text-decoration:none;transition:background .15s">🧩 扩展</a>
   </nav>
   <h1>🌙 莫名心 · 辨证食疗</h1>
   <div class="sub">填入症状，获得中医食疗与日常调理建议</div>
@@ -404,6 +404,11 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <label class="symptom-item"><input type="checkbox" value="心烦"> 心烦</label>
       <label class="symptom-item"><input type="checkbox" value="胸闷"> 胸闷</label>
       <label class="symptom-item"><input type="checkbox" value="健忘"> 健忘</label>
+      <label class="symptom-item"><input type="checkbox" value="烦躁"> 烦躁</label>
+      <label class="symptom-item"><input type="checkbox" value="焦虑"> 焦虑</label>
+      <label class="symptom-item"><input type="checkbox" value="易惊"> 易惊</label>
+      <label class="symptom-item"><input type="checkbox" value="悲伤欲哭"> 悲伤欲哭</label>
+      <label class="symptom-item"><input type="checkbox" value="心神不宁"> 心神不宁</label>
       <div class="symptom-section">💚 肝系</div>
       <label class="symptom-item"><input type="checkbox" value="急躁易怒"> 急躁易怒</label>
       <label class="symptom-item"><input type="checkbox" value="情绪抑郁"> 情绪抑郁</label>
@@ -411,6 +416,12 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <label class="symptom-item"><input type="checkbox" value="头晕目眩"> 头晕目眩</label>
       <label class="symptom-item"><input type="checkbox" value="目赤"> 目赤</label>
       <label class="symptom-item"><input type="checkbox" value="手足麻木"> 手足麻木</label>
+      <label class="symptom-item"><input type="checkbox" value="肢体麻木"> 肢体麻木</label>
+      <label class="symptom-item"><input type="checkbox" value="眼干涩"> 眼干涩</label>
+      <label class="symptom-item"><input type="checkbox" value="视物模糊"> 视物模糊</label>
+      <label class="symptom-item"><input type="checkbox" value="耳鸣"> 耳鸣</label>
+      <label class="symptom-item"><input type="checkbox" value="抽筋"> 抽筋</label>
+      <label class="symptom-item"><input type="checkbox" value="震颤"> 震颤</label>
       <div class="symptom-section">🟡 脾系</div>
       <label class="symptom-item"><input type="checkbox" value="食欲不振"> 食欲不振</label>
       <label class="symptom-item"><input type="checkbox" value="消谷善饥"> 消谷善饥</label>
@@ -419,6 +430,18 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <label class="symptom-item"><input type="checkbox" value="便溏"> 便溏</label>
       <label class="symptom-item"><input type="checkbox" value="便秘"> 便秘</label>
       <label class="symptom-item"><input type="checkbox" value="乏力"> 乏力</label>
+      <label class="symptom-item"><input type="checkbox" value="恶心"> 恶心</label>
+      <label class="symptom-item"><input type="checkbox" value="呕吐"> 呕吐</label>
+      <label class="symptom-item"><input type="checkbox" value="反酸"> 反酸</label>
+      <label class="symptom-item"><input type="checkbox" value="嗳气"> 嗳气</label>
+      <label class="symptom-item"><input type="checkbox" value="胃痛"> 胃痛</label>
+      <label class="symptom-item"><input type="checkbox" value="腹痛"> 腹痛</label>
+      <label class="symptom-item"><input type="checkbox" value="腹泻"> 腹泻</label>
+      <label class="symptom-item"><input type="checkbox" value="口淡无味"> 口淡无味</label>
+      <label class="symptom-item"><input type="checkbox" value="口黏腻"> 口黏腻</label>
+      <label class="symptom-item"><input type="checkbox" value="口臭"> 口臭</label>
+      <label class="symptom-item"><input type="checkbox" value="舌苔厚腻"> 舌苔厚腻</label>
+      <label class="symptom-item"><input type="checkbox" value="消瘦"> 消瘦</label>
       <div class="symptom-section">🤍 肺系</div>
       <label class="symptom-item"><input type="checkbox" value="咳嗽"> 咳嗽</label>
       <label class="symptom-item"><input type="checkbox" value="气喘"> 气喘</label>
@@ -426,6 +449,18 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <label class="symptom-item"><input type="checkbox" value="痰多"> 痰多</label>
       <label class="symptom-item"><input type="checkbox" value="自汗"> 自汗</label>
       <label class="symptom-item"><input type="checkbox" value="易感冒"> 易感冒</label>
+      <label class="symptom-item"><input type="checkbox" value="鼻塞"> 鼻塞</label>
+      <label class="symptom-item"><input type="checkbox" value="流清涕"> 流清涕</label>
+      <label class="symptom-item"><input type="checkbox" value="流黄涕"> 流黄涕</label>
+      <label class="symptom-item"><input type="checkbox" value="咽干"> 咽干</label>
+      <label class="symptom-item"><input type="checkbox" value="咽痛"> 咽痛</label>
+      <label class="symptom-item"><input type="checkbox" value="声音嘶哑"> 声音嘶哑</label>
+      <label class="symptom-item"><input type="checkbox" value="咳痰黄稠"> 咳痰黄稠</label>
+      <label class="symptom-item"><input type="checkbox" value="咳痰清稀"> 咳痰清稀</label>
+      <label class="symptom-item"><input type="checkbox" value="干咳"> 干咳</label>
+      <label class="symptom-item"><input type="checkbox" value="咯血"> 咯血</label>
+      <label class="symptom-item"><input type="checkbox" value="皮肤瘙痒"> 皮肤瘙痒</label>
+      <label class="symptom-item"><input type="checkbox" value="湿疹"> 湿疹</label>
       <div class="symptom-section">💙 肾系</div>
       <label class="symptom-item"><input type="checkbox" value="腰膝酸软"> 腰膝酸软</label>
       <label class="symptom-item"><input type="checkbox" value="畏寒"> 畏寒</label>
@@ -433,6 +468,14 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <label class="symptom-item"><input type="checkbox" value="五心烦热"> 五心烦热</label>
       <label class="symptom-item"><input type="checkbox" value="盗汗"> 盗汗</label>
       <label class="symptom-item"><input type="checkbox" value="夜尿多"> 夜尿多</label>
+      <label class="symptom-item"><input type="checkbox" value="尿频"> 尿频</label>
+      <label class="symptom-item"><input type="checkbox" value="尿急"> 尿急</label>
+      <label class="symptom-item"><input type="checkbox" value="尿痛"> 尿痛</label>
+      <label class="symptom-item"><input type="checkbox" value="小便清长"> 小便清长</label>
+      <label class="symptom-item"><input type="checkbox" value="小便黄"> 小便黄</label>
+      <label class="symptom-item"><input type="checkbox" value="遗精"> 遗精</label>
+      <label class="symptom-item"><input type="checkbox" value="脱发"> 脱发</label>
+      <label class="symptom-item"><input type="checkbox" value="牙齿松动"> 牙齿松动</label>
       <div class="symptom-section">🔘 全身/其他</div>
       <label class="symptom-item"><input type="checkbox" value="头痛"> 头痛</label>
       <label class="symptom-item"><input type="checkbox" value="口干"> 口干</label>
@@ -440,6 +483,20 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <label class="symptom-item"><input type="checkbox" value="面色淡白"> 面色淡白</label>
       <label class="symptom-item"><input type="checkbox" value="面色萎黄"> 面色萎黄</label>
       <label class="symptom-item"><input type="checkbox" value="浮肿"> 浮肿</label>
+      <label class="symptom-item"><input type="checkbox" value="四肢冰凉"> 四肢冰凉</label>
+      <label class="symptom-item"><input type="checkbox" value="手足心热"> 手足心热</label>
+      <label class="symptom-item"><input type="checkbox" value="汗多"> 汗多</label>
+      <label class="symptom-item"><input type="checkbox" value="汗少"> 汗少</label>
+      <label class="symptom-item"><input type="checkbox" value="面色潮红"> 面色潮红</label>
+      <label class="symptom-item"><input type="checkbox" value="面色晦暗"> 面色晦暗</label>
+      <label class="symptom-item"><input type="checkbox" value="眼圈发黑"> 眼圈发黑</label>
+      <label class="symptom-item"><input type="checkbox" value="背痛"> 背痛</label>
+      <label class="symptom-item"><input type="checkbox" value="腰痛"> 腰痛</label>
+      <label class="symptom-item"><input type="checkbox" value="关节痛"> 关节痛</label>
+      <label class="symptom-item"><input type="checkbox" value="身重"> 身重</label>
+      <label class="symptom-item"><input type="checkbox" value="嗜卧"> 嗜卧</label>
+      <label class="symptom-item"><input type="checkbox" value="口唇干裂"> 口唇干裂</label>
+      <label class="symptom-item"><input type="checkbox" value="皮肤干燥"> 皮肤干燥</label>
     </div>
     <div class="custom-input">
       <input type="text" id="customSymptom" placeholder="输入其他症状…" onkeydown="if(event.key==='Enter') addCustomSymptom()">
@@ -468,6 +525,14 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <span class="tag" data-val="舌苔白腻">舌苔白腻</span>
       <span class="tag" data-val="舌苔黄腻">舌苔黄腻</span>
       <span class="tag" data-val="舌苔薄白">舌苔薄白</span>
+      <span class="tag" data-val="舌尖红">舌尖红</span>
+      <span class="tag" data-val="舌淡红">舌淡红</span>
+      <span class="tag" data-val="少苔">少苔</span>
+      <span class="tag" data-val="无苔">无苔</span>
+      <span class="tag" data-val="苔白">苔白</span>
+      <span class="tag" data-val="苔黄">苔黄</span>
+      <span class="tag" data-val="苔白滑">苔白滑</span>
+      <span class="tag" data-val="苔黄燥">苔黄燥</span>
     </div>
   </div>
 
@@ -482,6 +547,34 @@ body.dark-theme .theme-toggle { border-color: #3a3a40; }
       <span class="tag" data-val="脉弱">脉弱</span>
       <span class="tag" data-val="脉滑">脉滑</span>
       <span class="tag" data-val="脉浮">脉浮</span>
+      <span class="tag" data-val="脉弦数">脉弦数</span>
+      <span class="tag" data-val="脉弦细">脉弦细</span>
+      <span class="tag" data-val="脉滑数">脉滑数</span>
+      <span class="tag" data-val="脉濡缓">脉濡缓</span>
+      <span class="tag" data-val="脉细弱">脉细弱</span>
+      <span class="tag" data-val="脉沉弱">脉沉弱</span>
+      <span class="tag" data-val="脉沉细">脉沉细</span>
+      <span class="tag" data-val="脉沉迟">脉沉迟</span>
+      <span class="tag" data-val="脉浮紧">脉浮紧</span>
+      <span class="tag" data-val="脉缓弱">脉缓弱</span>
+      <span class="tag" data-val="脉微细">脉微细</span>
+      <span class="tag" data-val="脉虚弱">脉虚弱</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">👂 闻诊（听声·嗅味）</div>
+    <div class="tag-group" id="voiceGroup">
+      <span class="tag" data-val="语声低微">语声低微</span>
+      <span class="tag" data-val="语声高亢">语声高亢</span>
+      <span class="tag" data-val="声重浊">声重浊</span>
+      <span class="tag" data-val="咳声重浊">咳声重浊</span>
+      <span class="tag" data-val="咳声清脆">咳声清脆</span>
+      <span class="tag" data-val="少气懒言">少气懒言</span>
+      <span class="tag" data-val="口气秽臭">口气秽臭</span>
+      <span class="tag" data-val="口气酸腐">口气酸腐</span>
+      <span class="tag" data-val="汗气腥臊">汗气腥臊</span>
+      <span class="tag" data-val="痰气腥臭">痰气腥臭</span>
     </div>
   </div>
   <div style="font-size:12px;color:var(--text-light);margin-top:8px;">🔄 可多选</div>
@@ -712,6 +805,63 @@ const SYMPTOM_KEYWORDS = {
   '面色淡白': ['面色淡白','脸白','脸色差'],
   '面色萎黄': ['面色萎黄','面色黄','脸黄','萎黄'],
   '浮肿': ['浮肿','水肿','肿','眼皮肿','腿肿'],
+  '烦躁': ['烦躁','烦','心躁','坐立不安'],
+  '焦虑': ['焦虑','紧张','担心','不安','心悬'],
+  '易惊': ['易惊','受惊','吓一跳','胆怯','容易被吓'],
+  '悲伤欲哭': ['悲伤','想哭','难过','哭','悲'],
+  '心神不宁': ['心神不宁','心神','不安','静不下来','乱想'],
+  '肢体麻木': ['肢体麻木','四肢麻','手脚麻','麻'],
+  '眼干涩': ['眼干','眼睛干','干涩','眼涩'],
+  '视物模糊': ['视物模糊','看不清','视力模糊','眼花'],
+  '耳鸣': ['耳鸣','耳朵响','嗡嗡','蝉鸣'],
+  '抽筋': ['抽筋','腿抽筋','痉挛','转筋'],
+  '震颤': ['震颤','手抖','发抖','颤抖'],
+  '恶心': ['恶心','想吐','反胃','干呕'],
+  '呕吐': ['呕吐','吐了','吐出'],
+  '反酸': ['反酸','泛酸','烧心','酸水'],
+  '嗳气': ['嗳气','打嗝','嗝气','呃逆'],
+  '胃痛': ['胃痛','胃疼','胃脘痛','心口痛'],
+  '腹痛': ['腹痛','肚子疼','肚痛','腹疼'],
+  '腹泻': ['腹泻','拉肚子','拉稀','水样便'],
+  '口淡无味': ['口淡','没味道','口淡无味','食不知味'],
+  '口黏腻': ['口黏','嘴里黏','口腻','黏腻'],
+  '口臭': ['口臭','嘴臭','口气重','口腔异味'],
+  '舌苔厚腻': ['舌苔厚','厚苔','苔腻','舌苔腻'],
+  '消瘦': ['消瘦','变瘦','瘦了','体重下降','掉秤'],
+  '鼻塞': ['鼻塞','鼻子不通','堵鼻子','鼻堵'],
+  '流清涕': ['流清涕','清鼻涕','清水鼻涕','流清鼻涕'],
+  '流黄涕': ['流黄涕','黄鼻涕','浓鼻涕'],
+  '咽干': ['咽干','嗓子干','喉咙干','咽燥'],
+  '咽痛': ['咽痛','嗓子疼','喉咙痛','咽疼'],
+  '声音嘶哑': ['声音嘶哑','嗓子哑','嘶哑','说不出话','失声'],
+  '咳痰黄稠': ['黄痰','痰黄','黄稠痰','浓痰'],
+  '咳痰清稀': ['清痰','白痰','稀痰','痰清'],
+  '干咳': ['干咳','干咳无痰','没痰'],
+  '咯血': ['咯血','咳血','痰中带血','吐血'],
+  '皮肤瘙痒': ['皮肤痒','瘙痒','身上痒','发痒'],
+  '湿疹': ['湿疹','皮炎','红疹','皮疹','丘疹'],
+  '尿频': ['尿频','老上厕所','频繁小便','总想尿'],
+  '尿急': ['尿急','憋不住尿','尿意急'],
+  '尿痛': ['尿痛','小便痛','排尿痛','尿刺痛'],
+  '小便清长': ['小便清','尿清','尿多清'],
+  '小便黄': ['小便黄','尿黄','尿色深'],
+  '遗精': ['遗精','滑精','梦遗'],
+  '脱发': ['脱发','掉发','掉头发','秃'],
+  '牙齿松动': ['牙齿松动','牙松','牙龈萎缩'],
+  '四肢冰凉': ['手脚冰凉','四肢凉','手脚冷','手脚冰'],
+  '手足心热': ['手心热','脚心热','手足热'],
+  '汗多': ['汗多','出汗多','爱出汗','大汗'],
+  '汗少': ['汗少','不出汗','无汗'],
+  '面色潮红': ['面色潮红','脸红','面红'],
+  '面色晦暗': ['面色晦暗','脸色暗','脸色黑','面色暗'],
+  '眼圈发黑': ['黑眼圈','眼圈黑','眼袋'],
+  '背痛': ['背痛','背疼','后背痛'],
+  '腰痛': ['腰痛','腰疼','腰酸','腰脊'],
+  '关节痛': ['关节痛','关节疼','膝盖疼','骨节痛'],
+  '身重': ['身重','身体沉','浑身重','沉重'],
+  '嗜卧': ['嗜卧','总躺着','不想动','喜卧'],
+  '口唇干裂': ['嘴唇干','口唇干','唇裂','嘴唇裂'],
+  '皮肤干燥': ['皮肤干','皮肤干燥','起皮','干燥'],
   '恶寒': ['恶寒','发冷','寒战','打寒战','浑身冷'],
   '发热': ['发热','发烧','体温高'],
   '无汗': ['无汗','不出汗','汗不出'],
@@ -783,11 +933,13 @@ async function submitDiagnosis() {
     return;
   }
 
-  // 舌脉（多选→逗号分隔）
+  // 舌脉闻（多选→逗号分隔）
   const tongueEls = document.querySelectorAll('#tongueGroup .selected');
   const pulseEls = document.querySelectorAll('#pulseGroup .selected');
+  const voiceEls = document.querySelectorAll('#voiceGroup .selected');
   const tongue = tongueEls.length ? Array.from(tongueEls).map(e => e.dataset.val).join(',') : '';
   const pulse = pulseEls.length ? Array.from(pulseEls).map(e => e.dataset.val).join(',') : '';
+  const voice = voiceEls.length ? Array.from(voiceEls).map(e => e.dataset.val).join(',') : '';
 
   // 显示加载
   document.getElementById('inputArea').style.display = 'none';
@@ -798,7 +950,8 @@ async function submitDiagnosis() {
     const body = JSON.stringify({
       symptoms: symptoms,
       tongue: tongue,
-      pulse: pulse
+      pulse: pulse,
+      voice: voice
     });
 
     const res = await fetch('/diagnose', {
@@ -810,7 +963,7 @@ async function submitDiagnosis() {
 
     document.getElementById('loading').style.display = 'none';
     showResult(data);
-    initAppend(symptoms, tongue, pulse);
+    initAppend(symptoms, tongue, pulse, voice);
     // 结果独占一屏：滚到顶部
     window.scrollTo({top: 0, behavior: 'smooth'});
   } catch (e) {
@@ -846,12 +999,14 @@ function resetDiagnosis() {
 var _allSymptoms = [];  // 累积症状
 var _lastTongue = '';
 var _lastPulse = '';
+var _lastVoice = '';
 var _submitting = false;
 
-function initAppend(symptoms, tongue, pulse) {
+function initAppend(symptoms, tongue, pulse, voice) {
   _allSymptoms = symptoms.slice();
   _lastTongue = tongue;
   _lastPulse = pulse;
+  _lastVoice = voice || '';
   document.getElementById('appendCard').style.display = 'block';
   updateAccumulated();
 }
@@ -904,7 +1059,8 @@ function finalSubmit() {
     body: JSON.stringify({
       symptoms: _allSymptoms,
       tongue: _lastTongue,
-      pulse: _lastPulse
+      pulse: _lastPulse,
+      voice: _lastVoice
     })
   }).then(function(r) { return r.json(); })
     .then(function(data) {
@@ -1162,18 +1318,18 @@ function resetAll() {
 (function(){
   var b=document.createElement('div');
   b.innerHTML='🔊 朗读';
-  b.style.cssText='position:fixed;bottom:24px;right:24px;z-index:9999;background:#4a7dff;color:#fff;border:none;border-radius:20px;padding:10px 18px;font-size:14px;cursor:pointer;box-shadow:0 2px 12px rgba(74,125,255,.4);display:none;font-family:sans-serif';
+  b.style.cssText='position:fixed;bottom:24px;right:24px;z-index:9999;background:#a0522d;color:#fff;border:none;border-radius:20px;padding:10px 18px;font-size:14px;cursor:pointer;box-shadow:0 2px 12px rgba(74,125,255,.4);display:none;font-family:sans-serif';
   document.body.appendChild(b);
   var a=false;
   b.onclick=function(){
-    if(a){window.speechSynthesis.cancel();a=false;b.innerHTML='🔊 朗读';b.style.background='#4a7dff';return}
+    if(a){window.speechSynthesis.cancel();a=false;b.innerHTML='🔊 朗读';b.style.background='#a0522d';return}
     var c=document.querySelector('article,.content,.markdown-body,main');
     var t=c?c.innerText:document.body.innerText;
     t=t.replace(/\\s+/g,' ').trim();
     if(t.length<10){b.innerHTML='❌ 无内容';setTimeout(function(){b.innerHTML='🔊 朗读'},1500);return}
     var u=new SpeechSynthesisUtterance(t);
     u.lang='zh-CN';u.rate=1.0;
-    u.onend=function(){a=false;b.innerHTML='🔊 朗读';b.style.background='#4a7dff'};
+    u.onend=function(){a=false;b.innerHTML='🔊 朗读';b.style.background='#a0522d'};
     window.speechSynthesis.speak(u);a=true;b.innerHTML='⏹ 停止';b.style.background='#e74c3c'
   };
   if(document.querySelector('article,.content,.markdown-body,main'))b.style.display='flex'
@@ -1207,7 +1363,8 @@ class DiagnoseHandler(BaseHTTPRequestHandler):
                 symptoms = data.get('symptoms', [])
                 tongue = data.get('tongue', '')
                 pulse = data.get('pulse', '')
-                result = run_diagnosis(symptoms, tongue, pulse)
+                voice = data.get('voice', '')
+                result = run_diagnosis(symptoms, tongue, pulse, voice)
                 self._json_response(200, result)
             except Exception as e:
                 self._json_response(200, {'error': f'诊断出错: {str(e)}'})
@@ -1226,12 +1383,12 @@ class DiagnoseHandler(BaseHTTPRequestHandler):
         print(f"[心哥小站] {args[0]} {args[1]} {args[2]}")
 
 
-def run_diagnosis(symptoms, tongue, pulse):
+def run_diagnosis(symptoms, tongue, pulse, voice=""):
     """执行辨证并返回结构化结果"""
     # 排除空字符串
     symptoms = [s for s in symptoms if s.strip()]
 
-    dx = differentiate(symptoms, tongue, pulse)
+    dx = differentiate(symptoms, tongue, pulse, voice)
 
     result = {
         'syndrome': dx.get('syndrome', '未确定'),

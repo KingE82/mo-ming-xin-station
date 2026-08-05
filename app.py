@@ -82,6 +82,55 @@ app.permanent_session_lifetime = timedelta(hours=4)
 # 在运行目录下放一个 密码.json 文件，内容 {"密码": "你的密码"}
 # 如果没有，默认密码是下面的 fallback
 _PWD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "密码.json")
+# ── 2026-08-05 小站翻新 · 公共样式（米白暖色系 · 简洁大气）──
+_SITE_CSS = """
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f7f2ec;--card:#fffdf9;--ink:#3d3a36;--ink-2:#8a827a;--accent:#a0522d;--accent-2:#c68a5d;--line:#e8dfd3;--shadow:0 2px 10px rgba(160,82,45,.08)}
+html{-webkit-text-size-adjust:100%}
+body{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.75;min-height:100vh;padding:24px 16px}
+.wrap{max-width:880px;margin:0 auto}
+h1{font-size:1.55rem;font-weight:600;color:var(--accent);margin-bottom:6px;letter-spacing:.5px}
+h2{font-size:1.15rem;color:var(--accent);margin:22px 0 10px}
+.sub{color:var(--ink-2);font-size:.88rem;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow);text-decoration:none;color:var(--ink);display:block;transition:transform .15s,box-shadow .15s}
+.card:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(160,82,45,.14)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.nav a{display:inline-block;padding:7px 14px;background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--accent);font-size:.85rem;transition:background .15s}
+.nav a:hover{background:var(--accent);color:#fff;text-decoration:none}
+.btn{display:inline-block;padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:999px;font-size:.92rem;cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--accent-2)}
+input[type=text],input[type=password],textarea,select{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:.95rem;margin-bottom:12px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent-2)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.9rem}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left}
+th{background:#f3ece2;color:var(--accent);font-weight:600}
+tr:nth-child(even){background:#faf6ef}
+.footer{text-align:center;color:var(--ink-2);font-size:.8rem;margin-top:34px;padding-top:16px;border-top:1px solid var(--line)}
+.poem-full,.content{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 28px;box-shadow:var(--shadow);white-space:pre-wrap;line-height:2}
+pre{background:#f3ece2;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;font-size:.88rem}
+.tag{display:inline-block;padding:4px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);cursor:pointer;font-size:.82rem;margin:3px;user-select:none}
+.tag.selected{background:var(--accent);color:#fff;border-color:var(--accent)}
+"""
+
+def _site_head(title="莫名心 · 小站"):
+    return f"""<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{title}</title>
+<style>{_SITE_CSS}</style>
+</head><body><div class="wrap">"""
+
+def _site_nav(links=None):
+    """统一顶部导航：返回首页 + 指定链接"""
+    base = '<a href="/tools">🧩 工具台</a><a href="/">🏠 首页</a>'
+    extra = ''.join(f'<a href="{h}">{t}</a>' for h, t in (links or []))
+    return '<div class="nav">' + base + extra + '</div>'
+
+def _site_foot():
+    return '<div class="footer">🌙 莫名心 · 小站 · 米白暖色 · 温婉如初</div></div></body></html>'
+
 _LOGIN_PASSWORD = "123456"  # 默认密码，建议改掉
 
 if os.path.isfile(_PWD_FILE):
@@ -305,7 +354,7 @@ body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;backgrou
 .wx-item .lbl{{color:#888}}
 .wx-item .val{{font-weight:600;margin-top:2px;font-size:14px}}
 .footer{{text-align:center;font-size:12px;color:#888;padding:16px 0}}
-a{{color:#4a7dff;text-decoration:none}}
+a{{color:#a0522d;text-decoration:none}}
 @media(max-width:420px){{.info-grid{{grid-template-columns:1fr}}.wuxing-grid{{grid-template-columns:1fr 1fr}}.controls .top-row .date-label{{font-size:15px;min-width:80px}}}}
 </style></head>
 <body>
@@ -665,7 +714,7 @@ button:disabled{opacity:0.5;cursor:not-allowed}
 .spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top:3px solid var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:8px;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 .footer{text-align:center;font-size:12px;color:var(--text-l);padding:16px 0}
-a{color:#4a7dff;text-decoration:none}
+a{color:#a0522d;text-decoration:none}
 </style></head><body>
 <h1>🤖 AI问答</h1>
 <p class="sub">DeepSeek V4 Flash 驱动</p>
@@ -806,7 +855,7 @@ h1{font-size:20px;margin-bottom:4px}
 .answer{font-size:14px;line-height:1.7;white-space:pre-wrap}
 .error{background:#fef2f0;color:#b8453a;padding:14px;border-radius:10px;font-size:14px}
 .footer{text-align:center;margin-top:20px;color:#888;font-size:.8rem}
-a{color:#4a7dff;text-decoration:none}
+a{color:#a0522d;text-decoration:none}
 .btn{display:block;text-align:center;padding:12px;background:#b8453a;color:white;border-radius:10px;text-decoration:none;margin:16px 0}
 </style></head><body><h1>🤖 AI问答</h1>
 <p class="sub">提问: """ + str(question[:100]) + """</p>"""
@@ -840,7 +889,7 @@ def knowledge_search():
         html += '.name{font-weight:600;font-size:14px}'
         html += '.desc{color:#666;font-size:.8rem;margin-top:2px}'
         html += '.footer{text-align:center;margin-top:20px}'
-        html += 'a{color:#4a7dff;text-decoration:none}'
+        html += 'a{color:#a0522d;text-decoration:none}'
         html += 'input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:12px}'
         html += '</style></head><body>'
         html += '<form method="get" action="/knowledge-search"><input type="text" name="query" placeholder="搜索哲学概念…"></form>'
@@ -872,29 +921,61 @@ def philosophy():
     if "text/html" in request.headers.get("Accept", ""):
         html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>哲思文库 · 莫名心小站</title><style>'
         html += '*{margin:0;padding:0;box-sizing:border-box}'
-        html += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
-        html += 'h1{font-size:20px;margin-bottom:4px}'
-        html += '.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
-        html += '.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;text-decoration:none;color:#2c2c2c;display:block;box-shadow:0 1px 4px rgba(0,0,0,.06)}'
-        html += '.name{font-weight:600;font-size:14px}'
-        html += '.desc{color:#666;font-size:.8rem;margin-top:2px}'
-        html += '.footer{text-align:center;margin-top:20px}'
-        html += 'a{color:#4a7dff;text-decoration:none}'
-        html += 'input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:12px}'
+        html += 'body{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;background:#f7f2ec;color:#3d3a36;padding:24px 16px;max-width:720px;margin:0 auto;line-height:1.75}'
+        html += 'h1{font-size:1.5rem;color:#a0522d;margin-bottom:4px}'
+        html += '.sub{color:#8a827a;font-size:.85rem;margin-bottom:18px}'
+        html += '.card{background:#fffdf9;border:1px solid #e8dfd3;border-radius:14px;padding:16px 18px;margin-bottom:12px;text-decoration:none;color:#3d3a36;display:block;box-shadow:0 2px 10px rgba(160,82,45,.08);transition:transform .15s,box-shadow .15s}'
+        html += '.card:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(160,82,45,.14)}'
+        html += '.name{font-weight:600;font-size:14px;color:#a0522d}'
+        html += '.desc{color:#8a827a;font-size:.8rem;margin-top:2px}'
+        html += '.footer{text-align:center;margin-top:24px;color:#8a827a;font-size:.8rem}'
+        html += 'a{color:#a0522d;text-decoration:none}'
+        html += 'input{width:100%;padding:12px 14px;border:1px solid #e8dfd3;border-radius:10px;font-size:14px;margin-bottom:12px;background:#fff;color:#3d3a36;outline:none}'
+        html += 'input:focus{border-color:#c68a5d}'
+        html += '.nav{display:flex;gap:8px;margin-bottom:18px}'
+        html += '.nav a{display:inline-block;padding:6px 14px;background:#fffdf9;border:1px solid #e8dfd3;border-radius:999px;color:#a0522d;font-size:.84rem}'
+        html += '.nav a:hover{background:#a0522d;color:#fff;text-decoration:none}'
+        html += '.alpha-nav{display:flex;flex-wrap:wrap;gap:4px;margin:12px 0 16px}'
+        html += '.alpha{display:inline-block;min-width:26px;text-align:center;padding:4px 6px;background:#fffdf9;border:1px solid #e8dfd3;border-radius:6px;color:#a0522d;font-size:.78rem;text-decoration:none}'
+        html += '.alpha:hover{background:#a0522d;color:#fff}'
+        html += '.alpha-group{margin-bottom:6px;border:1px solid #e8dfd3;border-radius:10px;background:#fffdf9;overflow:hidden}'
+        html += '.alpha-title{padding:9px 14px;cursor:pointer;font-weight:600;font-size:.9rem;color:#a0522d;background:#faf6ef;user-select:none}'
+        html += '.alpha-title .cnt{color:#b0a89c;font-weight:400;font-size:.75rem}'
+        html += '.alpha-items{display:none;padding:8px}'
+        html += '.alpha-group.open .alpha-items{display:block}'
+        html += '.alpha-group.open .alpha-title{background:#a0522d;color:#fff}'
         html += '</style></head><body>'
+        html += '<div class="nav"><a href="/tools">🧩 工具台</a><a href="/arsenal">🎯 弹药弹夹</a><a href="/">🏠 首页</a></div>'
         html += '<h1>📖 哲思文库</h1>'
-        html += '<p class="sub">斯坦福哲学百科 · 102条</p>'
         html += '<form method="get" action="/knowledge-search"><input type="text" name="query" placeholder="搜索概念…"></form>'
-        count = 0
-        for slug, entry in sorted(sep_data.items()):
-            if count >= 60:
-                if len(sep_data) > 60:
-                    html += '<p style="color:#888;text-align:center;font-size:.8rem">…还有' + str(len(sep_data)-60) + '条，搜索查看</p>'
-                break
-            name = str(entry.get('name', slug))[:60]
-            title = str(entry.get('title', ''))[:100]
-            html += f'<a class="card" href="/philosophy/{slug}"><div class="name">{name}</div><div class="desc">{title}</div></a>'
-            count += 1
+        # 按首字母分组（A-Z 索引折叠）
+        from collections import defaultdict
+        import re as _re
+        def _sep_name(entry, slug):
+            if isinstance(entry, dict):
+                return str(entry.get('name', slug))[:60]
+            return slug[:60]
+        def _sep_preview(entry, slug):
+            if isinstance(entry, dict):
+                return str(entry.get('title', '') or entry.get('body', ''))[:90]
+            return _re.sub(r'<[^>]+>', ' ', entry)[:90]
+        groups = defaultdict(list)
+        for slug in sorted(sep_data.keys()):
+            entry = sep_data[slug]
+            name = _sep_name(entry, slug)
+            first = (name[0].upper() if name and name[0].isalpha() else '#')
+            groups[first].append((slug, name))
+        html += f'<p class="sub">共 {len(sep_data)} 条 · 点击字母展开</p>'
+        html += '<div class="alpha-nav">' + ''.join(
+            f'<a href="#g-{ch}" class="alpha">{ch}</a>' for ch in sorted(groups.keys())) + '</div>'
+        for ch in sorted(groups.keys()):
+            items = groups[ch]
+            toggle_fn = 'this.parentNode.classList.toggle(\'open\')'
+            html += f'<div class="alpha-group" id="g-{ch}"><div class="alpha-title" onclick="{toggle_fn}">▸ {ch} <span class="cnt">({len(items)})</span></div><div class="alpha-items">'
+            for slug, name in items:
+                title = _sep_preview(sep_data[slug], slug)
+                html += f'<a class="card" href="/philosophy/{slug}"><div class="name">{name}</div><div class="desc">{title}</div></a>'
+            html += '</div></div>'
         html += '<div class="footer"><a href="/tools">← 工具台</a></div></body></html>'
         return html
     # 合并本地词条
@@ -904,12 +985,18 @@ def philosophy():
         if slug in sep_data:
             alias_key = f"★{主名}"
             if alias_key not in sep_data:
-                cz = sep_data[slug].get('_concept_zh', '')
+                src = sep_data[slug]
+                if isinstance(src, dict):
+                    cz = src.get('_concept_zh', '')
+                    body_src = src.get('body_zh', '') or src.get('body', '') or ''
+                    body_en = src.get('body_en', '') or src.get('body', '') or ''
+                else:
+                    cz, body_src, body_en = '', str(src), ''
                 sep_data[alias_key] = {
                     "name": 主名,
                     "title": f"本地词条 → {slug}" + (f" · 别名: {'、'.join(entry['别名'])}" if entry.get('别名') else ""),
-                    "body": cz or sep_data[slug].get('body_zh', '') or sep_data[slug].get('body', '')[:3000],
-                    "body_en": sep_data[slug].get('body_en', '') or sep_data[slug].get('body', '')[:3000],
+                    "body": cz or body_src[:3000],
+                    "body_en": body_en[:3000],
                     "_slug": slug,
                     "_concept_zh": cz,
                 }
@@ -927,18 +1014,23 @@ def philosophy_detail(slug=""):
         slug = slug.strip().lower()
         if slug in sep_data:
             entry = sep_data[slug]
-            name = str(entry.get("name", slug))
-            title = str(entry.get("title", ""))
-            body_zh = entry.get("body_zh", "") or entry.get("body", "") or ""
-            body_en = entry.get("body_en", "") or ""
-            body = body_zh or body_en
-            if not body:
-                body = str(entry.get("body", "") or "")
+            import re as _re
+            if isinstance(entry, dict):
+                name = str(entry.get("name", slug))
+                title = str(entry.get("title", ""))
+                body_zh = entry.get("body_zh", "") or entry.get("body", "") or ""
+                body_en = entry.get("body_en", "") or ""
+                body = body_zh or body_en
+                if not body:
+                    body = str(entry.get("body", "") or "")
+            else:
+                name, title, body = slug, "", str(entry)
+                body = _re.sub(r'<[^>]+>', ' ', body)
             body = body[:10000]
             import html as hmod
             title_safe = hmod.escape(title)
             name_safe = hmod.escape(name)
-            body_safe = hmod.escape(body)
+            body_json = json.dumps(body, ensure_ascii=False)
             return f"""<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>{name_safe} · 哲思文库</title>
@@ -949,14 +1041,19 @@ body.dark{{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--accent:
 body{{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:640px;margin:0 auto}}
 h1{{font-size:18px;margin-bottom:4px}}
 .sub{{color:#888;font-size:.8rem;margin-bottom:16px;word-wrap:break-word}}
-.content{{background:#fff;border-radius:12px;padding:16px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word}}
+.content{{background:#fff;border-radius:12px;padding:16px;font-size:14px;line-height:1.8;word-wrap:break-word}}
+blockquote{{margin:8px 0;padding:8px 12px;background:#faf5f0;border-left:3px solid #b8453a;color:#555;border-radius:0 8px 8px 0}}
+hr{{border:none;border-top:1px dashed #e0d8d2;margin:16px 0}}
 .footer{{text-align:center;margin-top:20px;font-size:.8rem;color:#888}}
-a{{color:#4a7dff;text-decoration:none}}
+a{{color:#a0522d;text-decoration:none}}
 </style></head><body>
 <h1>{name_safe}</h1>
 <p class="sub">{title_safe}</p>
-<div class="content">{body_safe}</div>
+<div class="content" id="phBody"></div>
 <div class="footer"><a href="https://plato.stanford.edu/entries/{slug}/" target="_blank" style="color:#2980b9">🔗 查看SEP原文</a> · <a href="/philosophy">← 哲思文库</a></div>
+<script>{_MD_RENDER_JS}
+document.getElementById('phBody').innerHTML = mdRender({body_json});
+</script>
 <script>try{{if(localStorage.getItem('xiaozhan_dark_mode')==='true')document.body.classList.add('dark')}}catch(e){{}}</script>
 </body></html>"""
     return "<h1>未找到</h1><p><a href='/philosophy'>← 返回</a></p>", 404
@@ -1002,18 +1099,22 @@ def notes():
     if "text/html" in request.headers.get("Accept", ""):
         h = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>学习笔记 / 莫名心小站</title><style>'
         h += '*{margin:0;padding:0;box-sizing:border-box}'
-        h += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
-        h += 'h1{font-size:20px;margin-bottom:4px}'
-        h += '.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
-        h += '.sect{margin-bottom:16px}'
-        h += '.stitle{font-weight:600;font-size:.9rem;color:#b8453a;margin-bottom:8px;padding-left:4px;border-left:3px solid #b8453a}'
-        h += '.card{background:#fff;border-radius:10px;padding:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06)}'
-        h += '.card a{text-decoration:none;color:#2c2c2c;display:block}'
-        h += '.card-title{font-weight:500;font-size:14px}'
-        h += '.card-meta{color:#888;font-size:.75rem;margin-top:2px}'
-        h += '.footer{text-align:center;margin-top:20px;font-size:.8rem;color:#888}'
-        h += 'a{color:#4a7dff;text-decoration:none}'
-        h += '.empty{color:#888;text-align:center;padding:40px}'
+        h += 'body{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;background:#f7f2ec;color:#3d3a36;padding:24px 16px;max-width:720px;margin:0 auto;line-height:1.75}'
+        h += 'h1{font-size:1.5rem;color:#a0522d;margin-bottom:4px}'
+        h += '.sub{color:#8a827a;font-size:.85rem;margin-bottom:18px}'
+        h += '.sect{margin-bottom:18px}'
+        h += '.stitle{font-weight:600;font-size:.9rem;color:#a0522d;margin-bottom:8px;padding-left:10px;border-left:3px solid #c68a5d}'
+        h += '.card{background:#fffdf9;border:1px solid #e8dfd3;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(160,82,45,.06);transition:box-shadow .15s}'
+        h += '.card:hover{box-shadow:0 4px 14px rgba(160,82,45,.12)}'
+        h += '.card a{text-decoration:none;color:#3d3a36;display:block}'
+        h += '.card-title{font-weight:500;font-size:14px;color:#3d3a36}'
+        h += '.card-meta{color:#8a827a;font-size:.75rem;margin-top:2px}'
+        h += '.footer{text-align:center;margin-top:24px;font-size:.8rem;color:#8a827a}'
+        h += 'a{color:#a0522d;text-decoration:none}'
+        h += '.empty{color:#8a827a;text-align:center;padding:40px}'
+        h += '.nav{display:flex;gap:8px;margin-bottom:16px}'
+        h += '.nav a{display:inline-block;padding:6px 14px;background:#fffdf9;border:1px solid #e8dfd3;border-radius:999px;color:#a0522d;font-size:.84rem}'
+        h += '.nav a:hover{background:#a0522d;color:#fff;text-decoration:none}'
         h += '</style></head><body>'
         h += '<h1>📝 学习笔记</h1><p class="sub">数字中医有感</p>'
         if not categories:
@@ -1069,7 +1170,7 @@ def gutenberg():
     h += '.cauthor{color:#666;font-size:.8rem;margin-top:2px}'
     h += '.clink{color:#2980b9;font-size:.75rem;margin-top:4px}'
     h += '.footer{text-align:center;margin-top:20px;font-size:.8rem;color:#888}'
-    h += 'a{color:#4a7dff;text-decoration:none}'
+    h += 'a{color:#a0522d;text-decoration:none}'
     h += '</style></head><body>'
     h += '<h1>📚 古登堡经典</h1>'
     h += '<p class="sub">Project Gutenberg · 免费哲学经典搜索</p>'
@@ -1122,7 +1223,8 @@ def note_view(filepath=""):
             md = f.read()
         lines = md.split("\n")
         title = hmod.escape(lines[0].lstrip("# ")) if lines else "笔记"
-        body = hmod.escape("\n".join(lines[1:]).strip())
+        body_md = "\n".join(lines[1:]).strip()
+        body_json = json.dumps(body_md, ensure_ascii=False)
         return f"""<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>{title}</title>
@@ -1130,12 +1232,17 @@ def note_view(filepath=""):
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}}
 h1{{font-size:20px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid #e0d8d2}}
-.content{{font-size:14px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word}}
+.content{{font-size:14px;line-height:1.8;word-wrap:break-word}}
+blockquote{{margin:8px 0;padding:8px 12px;background:#faf5f0;border-left:3px solid #b8453a;color:#555;border-radius:0 8px 8px 0}}
+hr{{border:none;border-top:1px dashed #e0d8d2;margin:16px 0}}
 .footer{{text-align:center;margin-top:24px;font-size:.8rem;color:#888}}
-a{{color:#4a7dff;text-decoration:none}}
+a{{color:#a0522d;text-decoration:none}}
 </style></head><body><h1>{title}</h1>
-<div class="content">{body}</div>
-<div class="footer"><a href="/notes">← 学习笔记</a></div></body></html>"""
+<div class="content" id="mdBody"></div>
+<div class="footer"><a href="/notes">← 学习笔记</a></div>
+<script>{_MD_RENDER_JS}
+document.getElementById('mdBody').innerHTML = mdRender({body_json});
+</script></body></html>"""
     return "<h1>未找到</h1><p><a href='/notes'>← 返回</a></p>", 404
 
 # ── 简单页面路由（不走 catch-all） ──
@@ -1257,30 +1364,30 @@ function testMic() {
 @login_required
 def kx_page():
     """知识库问答"""
-    return """<!DOCTYPE html><html lang="zh-CN"><head>
+    _html = """<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>知识库问答 · 莫名心小站</title>
 <style>
-body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f5f0eb;color:#2c2c2c;max-width:680px;margin:0 auto;padding:16px}
-h1{font-size:22px;color:#4a7dff}
-.sub{color:#888;font-size:13px;margin-bottom:16px}
-.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;background:#f7f2ec;color:#3d3a36;max-width:720px;margin:0 auto;padding:24px 16px;line-height:1.75}
+h1{font-size:1.5rem;color:#a0522d}
+.sub{color:#8a827a;font-size:13px;margin-bottom:16px}
+.card{background:#fffdf9;border:1px solid #e8dfd3;border-radius:14px;padding:18px 20px;box-shadow:0 2px 10px rgba(160,82,45,.08);margin-bottom:12px}
 label{font-size:13px;font-weight:600;color:#555;display:block;margin:8px 0 4px}
 input{width:100%;padding:12px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box}
-input:focus{border-color:#4a7dff}
-.btn{width:100%;padding:13px;background:#4a7dff;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
+input:focus{border-color:#a0522d}
+.btn{width:100%;padding:13px;background:#a0522d;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px}
 .btn:disabled{opacity:.5}
-#loading{display:none;text-align:center;padding:16px;color:#4a7dff}
-.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#4a7dff;border-radius:50%;animation:spin .8s linear infinite}
+#loading{display:none;text-align:center;padding:16px;color:#a0522d}
+.spinner{display:inline-block;width:22px;height:22px;border:3px solid #eee;border-top-color:#a0522d;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 #result{margin-top:12px}
 .hit{background:#fff;border-radius:10px;padding:14px;margin-top:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);font-size:14px;line-height:1.8}
-.hit .t{font-weight:700;font-size:15px;color:#4a7dff;margin-bottom:8px}
-.src{display:inline-block;background:#4a7dff11;color:#4a7dff;padding:3px 10px;border-radius:8px;font-size:12px;margin:4px 4px 0 0}
-.badge{display:inline-block;background:#4a7dff11;color:#4a7dff;border:1px solid #4a7dff44;padding:2px 10px;border-radius:10px;font-size:11px}
+.hit .t{font-weight:700;font-size:15px;color:#a0522d;margin-bottom:8px}
+.src{display:inline-block;background:#a0522d11;color:#a0522d;padding:3px 10px;border-radius:8px;font-size:12px;margin:4px 4px 0 0}
+.badge{display:inline-block;background:#a0522d11;color:#a0522d;border:1px solid #a0522d44;padding:2px 10px;border-radius:10px;font-size:11px}
 .footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
-a{color:#4a7dff;text-decoration:none}
+a{color:#a0522d;text-decoration:none}
 .note{font-size:11px;color:#999;text-align:center;margin-top:14px}
 </style></head><body>
 <h1>📚 知识库问答</h1>
@@ -1294,7 +1401,7 @@ a{color:#4a7dff;text-decoration:none}
 <div id="result"></div>
 <p class="note">🔒 知识库含道归体系 · 医书经典 · 哲学典籍（74篇文档）</p>
 <p class="footer"><a href="/tools">← 返回工具台</a></p>
-<script>
+<script>__MD_RENDER_JS__
 async function run(){
   var b=document.getElementById('goBtn');b.disabled=true;
   document.getElementById('loading').style.display='block';
@@ -1305,13 +1412,14 @@ async function run(){
     var d=await r.json();
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
-    var h='<div class="hit"><div class="t">📚 回答</div>'+d.answer+'</div>';
+    var raw = d.answer.replace(/<br\s*\/?>/gi, '\\n').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+    var h='<div class="hit"><div class="t">📚 回答</div>'+mdRender(raw)+'</div>';
     if(d.sources&&d.sources.length){
       h+='<div class="hit"><div class="t">📎 引用来源</div>';
       d.sources.forEach(function(s){
         h+='<div style="margin-bottom:10px">';
         h+='<span class="src">'+s.title+' ('+s.score+')</span>';
-        if(s.text){h+='<blockquote style="margin:6px 0 0;padding:6px 10px;border-left:3px solid #4a7dff55;background:#4a7dff0a;font-size:13px;color:#555">'+s.text+'…</blockquote>'}
+        if(s.text){h+='<blockquote style="margin:6px 0 0;padding:6px 10px;border-left:3px solid #a0522d55;background:#a0522d0a;font-size:13px;color:#555">'+s.text+'…</blockquote>'}
         h+='</div>';
       });
       h+='</div>';
@@ -1324,6 +1432,7 @@ async function run(){
   b.disabled=false;
 }
 </script></body></html>"""
+    return _html.replace("__MD_RENDER_JS__", _MD_RENDER_JS)
 
 
 @app.route("/kx", methods=["POST"])
@@ -1468,6 +1577,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -1652,9 +1764,16 @@ input:focus,select:focus{border-color:#d35400}
 a{color:#d35400;text-decoration:none}
 .note{font-size:11px;color:#999;text-align:center;margin-top:14px}
 </style></head><body>
-<h1>🌏 印占 · 西洋 · 太乙 · 梅花</h1>
-<p class="sub">吠陀星盘 · 太乙神数 · 梅花易数</p>
+<h1>🌏 星盘术数</h1>
+<p class="sub">印占 · 太乙 · 梅花 · 西洋占星（一次选一个体系）</p>
 <div class="card">
+  <label>体系</label>
+  <select id="sys">
+    <option value="jyotish">🕉️ 印占 Jyotish（吠陀星盘）</option>
+    <option value="taiyi">☯️ 太乙神数</option>
+    <option value="meihua">🌸 梅花易数</option>
+    <option value="western">🌟 西洋占星</option>
+  </select>
   <label>出生日期</label>
   <input type="date" id="bdate" value="2006-09-22">
   <div class="row">
@@ -1676,13 +1795,15 @@ async function run(){
   var b=document.getElementById('goBtn');b.disabled=true;
   document.getElementById('loading').style.display='block';
   document.getElementById('result').innerHTML='';
-  var body={date:document.getElementById('bdate').value,time:document.getElementById('btime').value,gender:document.getElementById('gender').value,lon:document.getElementById('lon').value,lat:document.getElementById('lat').value};
+  var body={date:document.getElementById('bdate').value,time:document.getElementById('btime').value,gender:document.getElementById('gender').value,lon:document.getElementById('lon').value,lat:document.getElementById('lat').value,system:document.getElementById('sys').value};
   try{
     var r=await fetch('/jyotish',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
     var d=await r.json();
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
-    var h='<div class="hit"><div class="t">🌏 三体系排盘</div>'+mdRender(d.report)+'</div><button class="btn" style="background:#d35400" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    var names={jyotish:'🕉️ 印占星盘',taiyi:'☯️ 太乙神数',meihua:'🌸 梅花易数',western:'🌟 西洋占星'};
+    var sysName=names[document.getElementById('sys').value]||'星盘';
+    var h='<div class="hit"><div class="t">'+sysName+'</div>'+mdRender(d.report)+'</div><button class="btn" style="background:#d35400" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
     document.getElementById('result').innerHTML=h;
   }catch(e){
     document.getElementById('loading').style.display='none';
@@ -1712,6 +1833,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -1764,13 +1888,14 @@ async function aiXuan(btn){
 @login_required
 @rate_limit
 def jyotish_api():
-    """印占+太乙+梅花 API"""
+    """印占/太乙/梅花/西洋占星 API（拆开，一次算一个体系）"""
     data = request.get_json(silent=True) or {}
     date_str = data.get("date", "") or ""
     time_str = data.get("time", "12:00") or "12:00"
     gender = data.get("gender", "male")
     lon = data.get("lon", "")
     lat = data.get("lat", "")
+    system = (data.get("system", "jyotish") or "jyotish").strip()[:20]
     import re as _re
     if not _re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
         return jsonify({"error": "日期格式应为 YYYY-MM-DD"}), 400
@@ -1778,28 +1903,30 @@ def jyotish_api():
         import jyotish_steward as _js
         lon_f = float(lon) if lon else None
         lat_f = float(lat) if lat else None
-        parts = []
+        if system == "taiyi":
+            try:
+                d = _js.cast_taiyi(date_str, time_str, gender, lat_f, lon_f)
+                return jsonify({"report": html.escape("【太乙神数】\n" + _js._fmt_taiyi(d))[:9000]})
+            except Exception as e:
+                return jsonify({"report": html.escape(f"【太乙】错误: {e}")[:150]})
+        if system == "meihua":
+            try:
+                d = _js.cast_suimei(date_str, time_str, gender, lat_f, lon_f)
+                return jsonify({"report": html.escape("【梅花易数】\n" + _js._fmt_suimei(d))[:9000]})
+            except Exception as e:
+                return jsonify({"report": html.escape(f"【梅花】错误: {e}")[:150]})
+        if system == "western":
+            try:
+                d = _js.cast_astrology(date_str, time_str, gender, lat_f, lon_f)
+                return jsonify({"report": html.escape("【西洋占星】\n" + _js._fmt_astrology(d))[:9000]})
+            except Exception as e:
+                return jsonify({"report": html.escape(f"【西洋】错误: {e}")[:150]})
+        # 默认：印占
         try:
             d = _js.cast_jyotish(date_str, time_str, gender, lat_f, lon_f)
-            parts.append("【印占 Jyotish】\n" + _js._fmt_jyotish(d))
+            return jsonify({"report": html.escape("【印占 Jyotish】\n" + _js._fmt_jyotish(d))[:9000]})
         except Exception as e:
-            parts.append(f"【印占】错误: {html.escape(str(e))[:150]}")
-        try:
-            d = _js.cast_taiyi(date_str, time_str, gender, lat_f, lon_f)
-            parts.append("\n\n【太乙神数】\n" + _js._fmt_taiyi(d))
-        except Exception as e:
-            parts.append(f"【太乙】错误: {html.escape(str(e))[:150]}")
-        try:
-            d = _js.cast_suimei(date_str, time_str, gender, lat_f, lon_f)
-            parts.append("\n\n【梅花易数】\n" + _js._fmt_suimei(d))
-        except Exception as e:
-            parts.append(f"【梅花】错误: {html.escape(str(e))[:150]}")
-        try:
-            d = _js.cast_astrology(date_str, time_str, gender, lat_f, lon_f)
-            parts.append("\n\n【西洋占星】\n" + _js._fmt_astrology(d))
-        except Exception as e:
-            parts.append(f"【西洋】错误: {html.escape(str(e))[:150]}")
-        return jsonify({"report": html.escape("\n".join(parts))[:9000]})
+            return jsonify({"report": html.escape(f"【印占】错误: {e}")[:150]})
     except Exception as e:
         return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
 
@@ -1895,6 +2022,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -1995,12 +2125,24 @@ a{color:#2980b9;text-decoration:none}
 <h1>🗺️ 奇门遁甲</h1>
 <p class="sub">拆补法定局 · 天文节气 · 九宫格局判定</p>
 <div class="card">
+  <div style="background:#eaf4fb;border:1px solid #2980b944;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#1a5276">⏰ <b>已自动填当下时间</b>：奇门测事以当下时辰起盘（不是生辰！）。直接点起盘即可；确有需要可手动改时间。</div>
+  <label>求测目的</label>
+  <select id="purpose">
+    <option value="考试学业">📚 考试学业</option>
+    <option value="事业工作">💼 事业工作</option>
+    <option value="感情婚姻">❤️ 感情婚姻</option>
+    <option value="健康疾病">🏥 健康疾病</option>
+    <option value="财运求财">💰 财运求财</option>
+    <option value="出行寻人">🚶 出行寻人</option>
+    <option value="官司诉讼">⚖️ 官司诉讼</option>
+    <option value="其他">❓ 其他</option>
+  </select>
   <label>日期</label>
-  <input type="date" id="bdate" value="2006-09-22">
+  <input type="date" id="bdate">
   <div class="row">
     <div><label>时辰</label><select id="hour">
       <option value="0">子时(23-1)</option><option value="2">丑时(1-3)</option><option value="4">寅时(3-5)</option>
-      <option value="6">卯时(5-7)</option><option value="8" selected>辰时(7-9)</option><option value="10">巳时(9-11)</option>
+      <option value="6">卯时(5-7)</option><option value="8">辰时(7-9)</option><option value="10">巳时(9-11)</option>
       <option value="12">午时(11-13)</option><option value="14">未时(13-15)</option><option value="16">申时(15-17)</option>
       <option value="18">酉时(17-19)</option><option value="20">戌时(19-21)</option><option value="22">亥时(21-23)</option>
     </select></div>
@@ -2012,11 +2154,20 @@ a{color:#2980b9;text-decoration:none}
 <p class="note">🔒 纯本地计算 · 拆补法</p>
 <p class="footer"><a href="/tools">← 返回工具台</a></p>
 <script>
+// 自动填当下时间（奇门测事以当下时辰起盘，不是生辰）
+(function(){
+  var now=new Date();
+  var pad=function(n){return (n<10?'0':'')+n};
+  document.getElementById('bdate').value = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+  var h=now.getHours();
+  var sh = (h===23||h===0)?0:(h===1||h===2)?2:(h===3||h===4)?4:(h===5||h===6)?6:(h===7||h===8)?8:(h===9||h===10)?10:(h===11||h===12)?12:(h===13||h===14)?14:(h===15||h===16)?16:(h===17||h===18)?18:(h===19||h===20)?20:22;
+  document.getElementById('hour').value = String(sh);
+})();
 async function run(){
   var b=document.getElementById('goBtn');b.disabled=true;
   document.getElementById('loading').style.display='block';
   document.getElementById('result').innerHTML='';
-  var body={date:document.getElementById('bdate').value,hour:document.getElementById('hour').value};
+  var body={date:document.getElementById('bdate').value,hour:document.getElementById('hour').value,purpose:document.getElementById('purpose').value};
   try{
     var r=await fetch('/qimen',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
     var d=await r.json();
@@ -2052,6 +2203,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -2108,17 +2262,23 @@ def qimen_api():
     data = request.get_json(silent=True) or {}
     date_str = data.get("date", "") or ""
     hour = data.get("hour", "8")
+    purpose = (data.get("purpose", "") or "").strip()[:20]
     import re as _re
     if not _re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        return jsonify({"error": "日期格式应为 YYYY-MM-DD"}), 400
+        # 没传/传错日期 → 自动用当下时间（奇门测事以当下时辰起盘）
+        from datetime import datetime as _dt
+        date_str = _dt.now().strftime("%Y-%m-%d")
     try:
         import qimen_steward as _qs
         y, m, d = [int(x) for x in date_str.split("-")]
         h = int(hour)
         if not (0 <= h <= 23):
-            return jsonify({"error": "时辰超出范围"}), 400
+            h = _dt.now().hour
+            h = (h // 2) * 2  # 归入时辰
         result = _qs.cast_qimen(y, m, d, h)
         report = _qs._fmt_pan(result)
+        if purpose:
+            report = f"🎯 求测目的: {purpose}\n" + report
         return jsonify({"report": html.escape(report)[:9000]})
     except Exception as e:
         return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
@@ -2409,6 +2569,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -2582,6 +2745,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -3344,7 +3510,8 @@ def crawled_view(filepath=""):
     s = (page - 1) * ppc
     chunk = body[s:s+ppc]
     bn = os.path.basename(file_rel)
-    return "<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><title>" + bn + "</title>" +         "<style>body{background:#16161a;color:#d8d0c0;padding:20px;font-family:sans-serif;line-height:2;white-space:pre-wrap;max-width:720px;margin:0 auto}" +         "a{color:#b0a898;text-decoration:none}.nav{padding:10px 0;border-bottom:1px solid #333}" +         ".pager{text-align:center;padding:14px}</style><body><div class=nav><a href=/crawled-view/>返回</a></div>" +         "<div>" + html.escape(chunk) + "</div><div class=pager>第" + str(page) + "/" + str(total) + "页</div></body></html>" 
+    import html as hmod
+    return "<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><title>" + bn + "</title>" +         "<style>body{background:#16161a;color:#d8d0c0;padding:20px;font-family:sans-serif;line-height:2;white-space:pre-wrap;max-width:720px;margin:0 auto}" +         "a{color:#b0a898;text-decoration:none}.nav{padding:10px 0;border-bottom:1px solid #333}" +         ".pager{text-align:center;padding:14px}</style><body><div class=nav><a href=/crawled-view/>返回</a></div>" +         "<div>" + hmod.escape(chunk) + "</div><div class=pager>第" + str(page) + "/" + str(total) + "页</div></body></html>" 
 @app.route("/daogui")
 @login_required
 def daogui():
@@ -3407,11 +3574,12 @@ def daogui3():
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>道归3.0 · 未来展望</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:20px;line-height:1.7;background:#faf8f5;color:#1a1a2e}
-h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px}
-.nav a{display:inline-block;margin:4px;padding:8px 16px;background:#1a1a2e;color:#faf8f5;text-decoration:none;border-radius:6px}
-.nav a:hover{background:#8b0000}
-.content{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-top:20px;white-space:pre-wrap}
+body{font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;max-width:800px;margin:0 auto;padding:24px 16px;line-height:1.75;background:#f7f2ec;color:#3d3a36}
+h1{color:#a0522d;border-bottom:2px solid #c68a5d;padding-bottom:10px}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.nav a{display:inline-block;margin:0;padding:6px 16px;background:#fffdf9;border:1px solid #e8dfd3;color:#a0522d;text-decoration:none;border-radius:999px;font-size:13px;transition:background .15s}
+.nav a:hover{background:#a0522d;color:#fff}
+.content{background:#fffdf9;border:1px solid #e8dfd3;padding:26px 28px;border-radius:14px;box-shadow:0 2px 10px rgba(160,82,45,.08);margin-top:20px;white-space:pre-wrap;line-height:1.9}
 hr{border:none;border-top:1px solid #ddd;margin:24px 0}
 blockquote{border-left:3px solid #8b0000;margin:16px 0;padding:8px 16px;background:#fff5f5;border-radius:4px}
 </style></head><body>
@@ -3433,7 +3601,9 @@ blockquote{border-left:3px solid #8b0000;margin:16px 0;padding:8px 16px;backgrou
                 import re
                 content = re.sub(r'^---.*?---', '', content, flags=re.DOTALL)
                 content = content.strip()
-                html += f'<h2>{label}</h2>\n<div class="content">{content}</div>'
+                content_json = json.dumps(content, ensure_ascii=False)
+                html += f'<h2>{label}</h2>\n<div class="content" id="dgContent"></div>'
+                html += f'<script>{_MD_RENDER_JS}\ndocument.getElementById("dgContent").innerHTML = mdRender({content_json});</script>'
                 found = True
                 break
     if not found:
@@ -3446,7 +3616,7 @@ blockquote{border-left:3px solid #8b0000;margin:16px 0;padding:8px 16px;backgrou
 # ── 启动 ──
 
 def _error_page(code, msg):
-    return f'<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><title>{code}</title><style>body{{font-family:system-ui,sans-serif;background:#16161a;color:#ece8dc;display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;text-align:center;padding:20px}}a{{color:#4a7dff}}</style></head><body><h1>{code}</h1><p>{msg}</p><a href=/>返回首页</a></body></html>', code
+    return f'<!DOCTYPE html><html lang=zh-CN><head><meta charset=UTF-8><title>{code}</title><style>body{{font-family:system-ui,sans-serif;background:#16161a;color:#ece8dc;display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;text-align:center;padding:20px}}a{{color:#a0522d}}</style></head><body><h1>{code}</h1><p>{msg}</p><a href=/>返回首页</a></body></html>', code
 
 @app.errorhandler(500)
 def handle_500(e):
@@ -3458,6 +3628,85 @@ def handle_404(e):
 
 
 
+@app.route("/arsenal")
+@login_required
+def arsenal():
+    """弹药弹夹 · 哲学吞噬计划 + 新旧哲学对撞合集（2026-08-05）"""
+    import os
+    import urllib.parse as _up
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    DG = os.path.join(BASE, '道归')
+    import html as hmod
+
+    # 扫描两类文档
+    docs = []  # (类型, 标题, 相对路径)
+    if os.path.isdir(DG):
+        for f in sorted(os.listdir(DG)):
+            if f.startswith('哲学吞噬_') and f.endswith('.md'):
+                title = f.replace('哲学吞噬_', '吞噬·').replace('_2026-07-26.md','').replace('_2026-07-27.md','').replace('.md','')
+                docs.append(('吞噬','# '+title, f))
+            elif f.startswith('哲学对撞_') and f.endswith('.md'):
+                title = f.replace('哲学对撞_','对撞·').replace('_2026-08-05.md','').replace('.md','')
+                docs.append(('对撞','# '+title, f))
+        for f in os.listdir(DG):
+            if f.startswith('哲学交叉分析_') and f.endswith('.md'):
+                docs.append(('交叉', '# 哲学交叉分析', f))
+
+    html = _site_head("弹药弹夹 · 莫名心小站")
+    html += _site_nav(links=[('/philosophy','📖 哲思文库')])
+    html += '<h1>🎯 弹药弹夹</h1>'
+    html += '<p class="sub">哲学吞噬计划 · 新旧哲学对撞 · 心哥体系火力库</p>'
+
+    html += '<div style="margin-bottom:8px">💥 <b>对撞文档</b>（用你的六大理论撞哲学家）：</div>'
+    for typ, title, f in docs:
+        if typ == '对撞':
+            html += f'<a class="card" href="/arsenal/doc?f={_up.quote(f)}"><div class="name" style="color:#a0522d;font-weight:600">{title.replace("# ","")}</div><div class="desc" style="color:#8a827a;font-size:.8rem">扫描 {f}</div></a>'
+
+    html += '<div style="margin:16px 0 8px">🦞 <b>吞噬计划</b>（用相变语言消化哲学家，第1层）：</div>'
+    for typ, title, f in docs:
+        if typ == '吞噬':
+            html += f'<a class="card" href="/arsenal/doc?f={_up.quote(f)}"><div class="name" style="color:#3d3a36;font-weight:600">{title.replace("# ","")}</div><div class="desc" style="color:#8a827a;font-size:.8rem">{f}</div></a>'
+
+    html += '<div style="margin:16px 0 8px">🔍 <b>交叉分析</b>：</div>'
+    for typ, title, f in docs:
+        if typ == '交叉':
+            html += f'<a class="card" href="/arsenal/doc?f={_up.quote(f)}"><div class="name" style="color:#3d3a36;font-weight:600">哲学交叉分析</div><div class="desc" style="color:#8a827a;font-size:.8rem">{f}</div></a>'
+
+    html += '<div style="margin:20px 0 8px">🧠 <b>SEP 哲思文库</b>（新弹药 · 持续入库中）：</div>'
+    html += '<a class="card" href="/philosophy"><div class="name" style="color:#a0522d;font-weight:600">📖 进入哲思文库</div><div class="desc" style="color:#8a827a;font-size:.8rem">斯坦福哲学百科全量词条</div></a>'
+
+    html += _site_foot()
+    return html
+
+
+@app.route("/arsenal/doc")
+@login_required
+def arsenal_doc():
+    """渲染弹药弹夹里的单篇文档"""
+    import os
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    DG = os.path.join(BASE, '道归')
+    import html as hmod
+    f = request.args.get('f','')
+    fp = os.path.join(DG, os.path.basename(f))
+    if not os.path.isfile(fp):
+        return '<h1>未找到</h1>', 404
+    raw = open(fp, encoding='utf-8').read()
+    body = raw.split('---',2)[-1] if raw.startswith('---') else raw
+    body = body[:60000]
+    body_json = json.dumps(body, ensure_ascii=False)
+    title = os.path.basename(f).replace('.md','')
+    html = _site_head(f"{title} · 弹药弹夹")
+    html += _site_nav(links=[('/arsenal','🎯 弹药弹夹'),('/philosophy','📖 哲思文库')])
+    html += f'<h1>{hmod.escape(title)}</h1>'
+    html += '<div class="content" id="b"></div>'
+    # 用 mdRender 渲染 markdown
+    js = _MD_RENDER_JS
+    html += f'<script>{js}\ndocument.getElementById("b").innerHTML = mdRender({body_json});</script>'
+    html += _site_foot()
+    return html
+
+
 @app.route("/poems")
 @login_required
 def poems():
@@ -3467,7 +3716,7 @@ def poems():
     POEM_DIR = os.path.join(BASE, '心哥的诗')
 
     def esc(t):
-        return str(t)[:8000]
+        return str(t)[:300000]
 
     poems_list = []
     # 短篇小说（叙事体，区别于诗）
@@ -3494,20 +3743,21 @@ def poems():
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>即兴创作 / 莫名心小站</title>
 <style>
-body{font-family:"KaiTi","STKaiti",serif;background:#faf8f5;color:#1a1a2e;max-width:800px;margin:0 auto;padding:20px;line-height:2}
-h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px;font-family:system-ui,sans-serif}
-.nav a{display:inline-block;margin:4px;padding:8px 16px;background:#1a1a2e;color:#faf8f5;text-decoration:none;border-radius:6px;font-family:system-ui,sans-serif;font-size:14px}
-.nav a:hover{background:#8b0000}
-.poem-card{background:#fff;padding:16px 20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-top:12px;cursor:pointer;display:block;text-decoration:none;color:inherit}
-.poem-card:hover{border-left:4px solid #8b0000}
-.poem-title{font-size:18px;font-weight:bold;color:#8b0000}
-.poem-preview{color:#555;font-size:14px;margin-top:6px;white-space:pre-wrap}
-.cat-tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:8px;margin-left:8px;font-family:system-ui,sans-serif}
-.cat-poem{background:#1a1a2e11;color:#1a1a2e;border:1px solid #1a1a2e22}
+body{font-family:"KaiTi","STKaiti","PingFang SC",serif;background:#f7f2ec;color:#3d3a36;max-width:800px;margin:0 auto;padding:24px 16px;line-height:2}
+h1{color:#a0522d;border-bottom:2px solid #c68a5d;padding-bottom:10px;font-family:"PingFang SC",system-ui,sans-serif;letter-spacing:.5px}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.nav a{display:inline-block;margin:0;padding:6px 16px;background:#fffdf9;border:1px solid #e8dfd3;color:#a0522d;text-decoration:none;border-radius:999px;font-family:"PingFang SC",system-ui,sans-serif;font-size:13px;transition:background .15s}
+.nav a:hover{background:#a0522d;color:#fff}
+.poem-card{background:#fffdf9;border:1px solid #e8dfd3;padding:16px 22px;border-radius:14px;box-shadow:0 2px 10px rgba(160,82,45,.08);margin-top:12px;cursor:pointer;display:block;text-decoration:none;color:inherit;transition:transform .15s,box-shadow .15s}
+.poem-card:hover{border-left:4px solid #a0522d;transform:translateY(-1px);box-shadow:0 4px 16px rgba(160,82,45,.14)}
+.poem-title{font-size:18px;font-weight:bold;color:#a0522d}
+.poem-preview{color:#8a827a;font-size:14px;margin-top:6px;white-space:pre-wrap}
+.cat-tag{display:inline-block;font-size:11px;padding:1px 10px;border-radius:8px;margin-left:8px;font-family:"PingFang SC",system-ui,sans-serif}
+.cat-poem{background:#a0522d11;color:#a0522d;border:1px solid #c68a5d44}
 .cat-story{background:#8b000011;color:#8b0000;border:1px solid #8b000022}
-.poem-full{background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);margin-top:20px;font-size:17px;white-space:pre-wrap}
-.poem-full .pt{font-size:22px;font-weight:bold;color:#8b0000;margin-bottom:16px;text-align:center}
-.back{display:inline-block;margin-top:16px;color:#4a7dff;text-decoration:none}
+.poem-full{background:#fffdf9;border:1px solid #e8dfd3;padding:34px 38px;border-radius:14px;box-shadow:0 2px 12px rgba(160,82,45,.08);margin-top:20px;font-size:17px;white-space:pre-wrap;line-height:2.1}
+.poem-full .pt{font-size:22px;font-weight:bold;color:#a0522d;margin-bottom:18px;text-align:center;letter-spacing:2px}
+.back{display:inline-block;margin-top:16px;color:#a0522d;text-decoration:none;border-bottom:1px solid #c68a5d44}
 </style></head><body>
 <h1>🔥 即兴创作</h1>
 <div class="nav"><a href="/">← 返回小站</a></div>
@@ -3515,7 +3765,11 @@ h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px;font-family:
     if p:
         poem = next((x for x in poems_list if x['file'] == p), None)
         if poem:
-            html += f'<div class="poem-full"><div class="pt">《{esc(poem["title"])}》</div>{esc(poem["content"])}</div>'
+            import re as _re
+            content = _re.sub(r'^---.*?---', '', poem['content'], flags=_re.DOTALL).strip()
+            content_json = json.dumps(content, ensure_ascii=False)
+            html += f'<div class="poem-full"><div class="pt">《{esc(poem["title"])}》</div><div id="pfBody"></div></div>'
+            html += f'<script>{_MD_RENDER_JS}\ndocument.getElementById("pfBody").innerHTML = mdRender({content_json});</script>'
             html += '<a class="back" href="/poems">← 返回诗列表</a>'
         else:
             html += '<p>未找到这首诗</p><a class="back" href="/poems">← 返回</a>'
@@ -3572,12 +3826,12 @@ h1{font-size:1.5rem;margin-bottom:4px}
 .ext-toggle input{opacity:0;width:0;height:0}
 .ext-toggle .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:12px;transition:.3s}
 .ext-toggle .slider::before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
-.ext-toggle input:checked+.slider{background:#4a7dff}
+.ext-toggle input:checked+.slider{background:#a0522d}
 .ext-toggle input:checked+.slider::before{transform:translateX(20px)}
 .ext-more{color:#999;cursor:pointer;padding:4px;font-size:1.1rem}
 .search-bar{display:flex;gap:8px;margin-bottom:20px}
 .search-bar input{flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:.9rem;outline:none}
-.search-bar input:focus{border-color:#4a7dff}
+.search-bar input:focus{border-color:#a0522d}
 .empty-state{text-align:center;padding:60px 20px;color:#999}
 </style></head><body>
 <h1>🧩 扩展管理</h1>
@@ -3596,7 +3850,7 @@ h1{font-size:1.5rem;margin-bottom:4px}
 <div class="ext-list" id="extList"></div>
 
 <p style="text-align:center;margin-top:24px;color:#999;font-size:.8rem">
-<a href="/" style="color:#4a7dff;text-decoration:none">← 返回首页</a>
+<a href="/" style="color:#a0522d;text-decoration:none">← 返回首页</a>
 </p>
 
 <script>
@@ -3682,7 +3936,8 @@ def api_tts():
     return jsonify(result)
 
 
-_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">八套术数引擎 · 输入生达即可起盘\n<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;padding:10px 14px;margin:10px 0 14px;font-size:13px;color:#2e7d32">🔒 <b>纯本地运行</b>：排盘全部在本服务器计算，你的生日完全不会上传到任何外部服务器。数据不出这台机器。</div></p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"if(!packDates())return false;document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><div style="display:flex;gap:6px"><select name="bdate_year" style="flex:1.4;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate_month" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate_day" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><input type="hidden" name="bdate" value="2026-07-28"></div></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-bottom:14px">
+_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f7f2ec;color:#3d3a36;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fffdf9;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fffdf9;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#a0522d;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">术数总入口 · 命理用生辰 / 测事用当下</p>\n<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">\n<a href="/steward" class="tag" style="background:#b8453a;color:#fff;font-size:13px;padding:6px 14px">🧙 管家·八套术数</a>\n<a href="/jyotish" class="tag" style="background:#d35400;color:#fff;font-size:13px;padding:6px 14px">🌏 星盘术数</a>\n<a href="/liuyao" class="tag" style="background:#27ae60;color:#fff;font-size:13px;padding:6px 14px">⚡ 六爻纳甲</a>\n<a href="/qimen" class="tag" style="background:#2980b9;color:#fff;font-size:13px;padding:6px 14px">🗺️ 奇门遁甲</a>\n<a href="/bazi-ziwei" class="tag" style="background:#8e44ad;color:#fff;font-size:13px;padding:6px 14px">⚖️ 八字紫微印证</a>\n<a href="/steward-new" class="tag" style="background:#e67e22;color:#fff;font-size:13px;padding:6px 14px">🪐 七政铁板</a>\n</div>\n<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;padding:10px 14px;margin:10px 0 14px;font-size:13px;color:#2e7d32">🔒 <b>纯本地运行</b>：排盘全部在本服务器计算，你的生日完全不会上传到任何外部服务器。数据不出这台机器。</div>
+<div style="background:#eaf4fb;border:1px solid #2980b944;border-radius:10px;padding:10px 14px;margin:10px 0 14px;font-size:12px;color:#1a5276">⏰ <b>时家类（奇门/六壬/梅花/金口诀/小六壬）自动用当下时辰起盘</b>，生辰字段可留空；八字/紫微才需填生辰。</div></p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"if(!packDates())return false;document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><div style="display:flex;gap:6px"><select name="bdate_year" style="flex:1.4;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate_month" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate_day" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><input type="hidden" name="bdate" value="2026-07-28"></div></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-top:6px"><label>纬度（七政四余/印占定宫位必需，默认30，可留空）</label><input type="text" name="latitude" placeholder="如 40.8（张家口）" value=""></div>\n<div style="margin-bottom:14px">
 <label>模式</label>
 <div style="display:flex;gap:10px;margin-top:4px">
 <label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
@@ -3737,7 +3992,7 @@ _STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"U
 </label>
 </div>
 </div>
-<label>术数</label>\n<select name=\"mode\">\n<option value=\"bazi\">八字 — 子平八字排盘</option>\n<option value=\"ziwei\">紫微斗数 — 紫微课盘</option>\n<option value=\"qimen\">奇门道甲 — 时家奇门盘</option>\n<option value=\"liuren\">大六壬 — 六壬课经</option>\n<option value=\"meihua\">梅花易数 — 梅花起卦</option><option value="jinkoujue">金口诀 — 金口诀课经</option><option value="wuyunliuqi">五运六气 — 岁运客主加临</option><option value="xiaoliuren">小六壬 — 道传起卦</option>\n<option value=\"all\">全量 — 所有术数</option>\n</select>\n<label style=\"display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:#555;font-weight:500\">\n<input type=\"checkbox\" name=\"full_stars\" value=\"1\" style=\"width:17px;height:17px;margin:0;accent-color:#b8453a\"> 紫微全星图（含红鸾/咸池/寡宿等杂曜）\n</label>\n<label style=\"display:block;margin:8px 0 4px;font-size:13px;color:#555;font-weight:500\">日界流派（晚子时23-24点出生才影响）</label>\n<select name=\"sect\" style=\"padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:14px;margin-bottom:14px\">\n<option value=\"1\">子正换日（默认：晚子时算当日）</option>\n<option value=\"2\">子初换日（iztro 流派：晚子时按次日排盘）</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n
+<label>术数</label>\n<label>术数（可多选，勾几个算几个）</label>\n<div style="margin-bottom:8px;font-size:13px;color:#8e6b4a;font-weight:600;border-bottom:1px solid #eee;padding-bottom:4px">🌱 先天生辰（命盘，填生辰）</div>\n<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">\n<label class="chk"><input type="checkbox" name="mode" value="bazi" checked> 八字</label>\n<label class="chk"><input type="checkbox" name="mode" value="ziwei"> 紫微</label>\n<label class="chk"><input type="checkbox" name="mode" value="qizheng"> 七政四余</label>\n<label class="chk"><input type="checkbox" name="mode" value="tieban"> 铁板神数</label>\n<label class="chk"><input type="checkbox" name="mode" value="wuyunliuqi"> 五运六气</label>\n</div>\n<div style="margin-bottom:8px;font-size:13px;color:#8e6b4a;font-weight:600;border-bottom:1px solid #eee;padding-bottom:4px">⏰ 当下测算（起卦，用当下时辰）</div>\n<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">\n<label class="chk"><input type="checkbox" name="mode" value="qimen"> 奇门</label>\n<label class="chk"><input type="checkbox" name="mode" value="liuren"> 大六壬</label>\n<label class="chk"><input type="checkbox" name="mode" value="meihua"> 梅花</label>\n<label class="chk"><input type="checkbox" name="mode" value="jinkoujue"> 金口诀</label>\n<label class="chk"><input type="checkbox" name="mode" value="xiaoliuren"> 小六壬</label>\n</div>\n<div id="purposeBox" style="display:none;background:#fff8f0;border:1px solid #e8c9a0;border-radius:10px;padding:12px;margin-bottom:12px">\n<label style="font-size:13px;font-weight:600;color:#8e6b4a">🎯 求测目的（当下测算必填）</label>\n<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'学业考试')">📚 学业考试</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'事业工作')">💼 事业工作</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'姻缘感情')">❤️ 姻缘感情</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'人际关系')">🤝 人际关系</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'财运')">💰 财运</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'健康')">🏥 健康</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'出行')">🚶 出行</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'寻物')">🔍 寻物</button>\n<button type="button" class="purpose-btn" onclick="pickPurpose(this,'官司')">⚖️ 官司</button>\n</div>\n<input type="text" id="purposeCustom" placeholder="或自己输入想测的事…" style="width:100%;padding:10px;border:2px solid #e8c9a0;border-radius:10px;font-size:14px;box-sizing:border-box">\n<input type="hidden" id="purpose" name="purpose" value="">\n<div style="font-size:11px;color:#b08a5a;margin-top:4px">点上面的标签快速选，或自己输入；最终以输入框内容为准</div>\n</div>\n<input type="hidden" id="modeStr" name="modeStr">\n<label style=\"display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:#555;font-weight:500\">\n<input type=\"checkbox\" name=\"full_stars\" value=\"1\" style=\"width:17px;height:17px;margin:0;accent-color:#b8453a\"> 紫微全星图（含红鸾/咸池/寡宿等杂曜）\n</label>\n<label style=\"display:block;margin:8px 0 4px;font-size:13px;color:#555;font-weight:500\">日界流派（晚子时23-24点出生才影响）</label>\n<select name=\"sect\" style=\"padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:14px;margin-bottom:14px\">\n<option value=\"1\">子正换日（默认：晚子时算当日）</option>\n<option value=\"2\">子初换日（iztro 流派：晚子时按次日排盘）</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n
 <div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:10px;padding:10px 14px;margin-top:16px;font-size:12px;color:#8d6e63;line-height:1.7">
 ⚠️ <b>免责声明</b>：本站所有术数排盘结果（八字/紫微/奇门/六壬/梅花/金口诀/五运六气/小六壬）仅供<b>娱乐与传统文化研究</b>，不构成任何医疗、投资、法律、婚恋或重大决策建议。排盘为纯本地计算，数据不出本机；AI 解读由大模型生成，可能存在误差。请理性看待，一切以现实为准，风险自担。
 </div></body><script>
@@ -3753,6 +4008,26 @@ _STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"U
     }
     y.onchange=fillDays;m.onchange=fillDays;fillDays();
   }
+  var SHI_JIA=['qimen','liuren','meihua','jinkoujue','xiaoliuren'];
+  function refreshPurposeBox(){
+    var ms=document.getElementsByName('mode'), anyShi=false;
+    for(var i=0;i<ms.length;i++){ if(ms[i].checked && SHI_JIA.indexOf(ms[i].value)>=0){ anyShi=true; break; } }
+    var box=document.getElementById('purposeBox');
+    if(box){ box.style.display = anyShi ? 'block' : 'none'; }
+    return anyShi;
+  }
+  window.pickPurpose=function(btn,val){
+    var inp=document.getElementById('purposeCustom');
+    var hidden=document.getElementById('purpose');
+    if(inp){ inp.value=val; }
+    if(hidden){ hidden.value=val; }
+    var btns=document.querySelectorAll('.purpose-btn');
+    for(var i=0;i<btns.length;i++){ btns[i].style.outline = (btns[i]===btn) ? '2px solid #d35400' : 'none'; }
+  };
+  (function(){
+    var ms=document.getElementsByName('mode');
+    for(var i=0;i<ms.length;i++){ ms[i].addEventListener('change',refreshPurposeBox); }
+  })();
   function packDates(){
     function pack(ys,ms,ds,hid){
       hid.value=ys.value+'-'+('00'+ms.value).slice(-2)+'-'+('00'+ds.value).slice(-2);
@@ -3761,6 +4036,14 @@ _STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"U
     if(document.getElementsByName('bdate2')[0]){
       pack(document.getElementsByName('bdate2_year')[0],document.getElementsByName('bdate2_month')[0],document.getElementsByName('bdate2_day')[0],document.getElementsByName('bdate2')[0]);
     }
+    var ms=document.getElementsByName('mode'), sel=[];
+    for(var mi=0;mi<ms.length;mi++){ if(ms[mi].checked) sel.push(ms[mi].value); }
+    if(!sel.length) sel.push('bazi');
+    var msEl=document.getElementById('modeStr');
+    if(msEl) msEl.value=sel.join(',');
+    var pc=document.getElementById('purposeCustom');
+    var ph=document.getElementById('purpose');
+    if(ph && pc && pc.value){ ph.value=pc.value; }
     return true;
   }
   window.packDates=packDates;
@@ -3796,6 +4079,9 @@ function mdRender(text){
     if(/^\s*\|/.test(l)){
       var tbl = [l.trim()];
       while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(lines[i+1].trim())){
+          i++; continue;  // 跳过重复分隔行（ASCII 框线转来的）
+        }
         tbl.push(lines[i+1].trim()); i++;
       }
       if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
@@ -3811,6 +4097,18 @@ function mdRender(text){
         continue;
       }
     }
+    // ==== 引用块 ====
+    if(/^\s*&gt;/.test(l) || /^\s*>\s?/.test(l)){
+      var q = [l.replace(/^\s*>\s?/, '')];
+      while(i+1 < lines.length && (/^\s*>\s?/.test(lines[i+1]) || /^\s*&gt;/.test(lines[i+1]))){
+        i++; q.push(lines[i].replace(/^\s*>\s?/, '').replace(/^\s*&gt;/, ''));
+      }
+      closeList();
+      html += '<blockquote style="margin:8px 0;padding:8px 12px;background:#faf5f0;border-left:3px solid #b8453a;color:#555;border-radius:0 8px 8px 0">' + q.map(function(x){return mdInline(x.trim())}).join('<br>') + '</blockquote>';
+      continue;
+    }
+    // ==== 分隔线 ====
+    if(/^\s*([-*_])\s*\\1\s*\\1+\s*$/.test(l)){ closeList(); html += '<hr style="border:none;border-top:1px dashed #e0d8d2;margin:16px 0">'; continue; }
     // ==== 标题 ====
     if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
     else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
@@ -3839,10 +4137,183 @@ def steward():
     def esc(t):
         return html.escape(str(t)[:5000])
     
+    import markdown as _mk
+    _md_style = '<style>table{border-collapse:collapse;margin:8px 0;width:100%;font-size:13px}th,td{border:1px solid #e0d8d2;padding:6px 8px;text-align:left}th{background:#b8453a11;color:#b8453a}blockquote{margin:8px 0;padding:8px 12px;background:#faf5f0;border-left:3px solid #b8453a;color:#555;border-radius:0 8px 8px 0}hr{border:none;border-top:1px dashed #e0d8d2;margin:16px 0}</style>'
+    def _md_to_html(t):
+        """服务端 markdown → HTML（不依赖浏览器 JS）"""
+        t = str(t or '')
+        # 框线图（紫微宫格等）必须等宽字体显示，否则错位
+        if '┌' in t or '└' in t or '│' in t:
+            return '<pre style="font-family:monospace;font-size:13px;line-height:1.5;background:#faf8f5;padding:12px;border-radius:8px;overflow-x:auto;white-space:pre">' + esc(t[:8000]) + '</pre>'
+        try:
+            return _mk.markdown(t, extensions=['tables', 'fenced_code'])
+        except Exception:
+            return '<pre>' + esc(t[:5000]) + '</pre>'
+    
+    def _fmt_wuyun(wu):
+        """五运六气 dict → 可读文本（不再显示原始 JSON）"""
+        try:
+            _w = wu or {}
+            _lines = []
+            _lines.append(f"日期: {_w.get('日期','')}  干支: {_w.get('干支','')} ({_w.get('天干','')}年 {_w.get('地支','')})")
+            _sd = _w.get('岁运', {})
+            if _sd:
+                _lines.append(f"岁运: {_sd.get('天干','')}年 → {_sd.get('岁运','')}运（{_sd.get('太过不及','')}）")
+                _lines.append(f"  脏腑: {'、'.join(str(x) for x in _sd.get('脏腑',[]))} | 季节: {_sd.get('季节','')} | 气候: {_sd.get('气候','')} | 五味: {_sd.get('五味','')}")
+                _lines.append(f"  描述: {_sd.get('描述','')}")
+            if _w.get('司天'):
+                _lines.append(f"司天: {_w.get('司天','')} | 在泉: {_w.get('在泉','')}")
+            _cur = _w.get('当前', {})
+            if _cur:
+                _lines.append(f"当前: {_cur.get('时段','')}（主气 {_cur.get('主气','')} / 客气 {_cur.get('客气','')}，{_cur.get('区间','')}）")
+            _steps = _w.get('客气六步', [])
+            if _steps:
+                _lines.append('')
+                _lines.append('客气六步:')
+                _lines.append('| 时段 | 客气 | 主气 | 日期 | 标记 |')
+                _lines.append('|---|---|---|---|---|')
+                for _s in _steps:
+                    _mk2 = _s.get('标记','') or ''
+                    _lines.append(f"| {_s.get('时段','')} | {_s.get('客气','')} | {_s.get('主气','')} | {_s.get('日期','')} | {_mk2} |")
+            return '\n'.join(_lines)[:6000]
+        except Exception:
+            return json.dumps(wu, ensure_ascii=False, indent=2)[:6000]
+    
+    import re as _mdre
+    def _clean_md(raw):
+        """排盘原始文本 → 可渲染 markdown：ASCII表格补分隔行、====转---、去英文头"""
+        raw = str(raw or "")
+        # 英文头清理
+        raw = raw.replace("(Metaphysics Steward)", "").replace("Metaphysics Steward", "")
+        raw = raw.replace("steward.py:", "")
+        # 长分隔线 → markdown hr
+        raw = _mdre.sub(r'^[=]{3,}\s*$', '---', raw, flags=_mdre.M)
+        raw = _mdre.sub(r'^[-]{3,}\s*$', '---', raw, flags=_mdre.M)
+        # 全角制表符表格 → markdown 表格
+        # 1) 全角竖线 → 半角
+        raw = raw.replace('│', '|')
+        # 2) 顶/底边框行（┌──┐ └──┘）→ 删除
+        raw = _mdre.sub(r'^[┌└╔╚][─━┬┴╦╩]*[┐┘╗╝]\s*$', '', raw, flags=_mdre.M)
+        # 3) 中间框线行（├──┼──┤）→ markdown 分隔行
+        def _box_to_sep(m):
+            line = m.group(0)
+            n = line.count('┼') + 1
+            if n <= 1:
+                n = max(1, line.count('─') // 6 + 1)
+            return '|' + '---|' * n
+        raw = _mdre.sub(r'^[├╠][─━┼╬]*[┤╣]\s*$', _box_to_sep, raw, flags=_mdre.M)
+        # 4) 残留的全角框线字符清理
+        raw = raw.replace('─', '').replace('━', '').replace('┼', '|').replace('┬', '|').replace('┴', '|')
+        # 键值行加粗（"键: 值" → "**键**: 值"），两空格缩进项 → markdown 列表项
+        _kv_lines = []
+        for _ln in raw.split('\n'):
+            _s = _ln.rstrip()
+            if _s.startswith('|') or not _s.strip():
+                # 表格行前若上一行非空且非表格行，补空行让 markdown 识别表格
+                if _s.startswith('|') and _kv_lines and _kv_lines[-1].strip() and not _kv_lines[-1].strip().startswith('|'):
+                    _kv_lines.append('')
+                _kv_lines.append(_ln)
+                continue
+            _stripped = _s.strip()
+            if _s.startswith('  '):
+                # 缩进项（如星曜列表）→ markdown 列表项；列表前需空行
+                if _kv_lines and _kv_lines[-1].strip() and not _kv_lines[-1].startswith('- '):
+                    _kv_lines.append('')
+                _kv_lines.append('- ' + _stripped)
+            else:
+                _m = _mdre.match(r'^([\u4e00-\u9fa5A-Za-z0-9（()）\s]+?):\s?(.*)$', _stripped)
+                if _m and len(_m.group(1)) <= 20 and '://' not in _stripped:
+                    _key = _m.group(1).strip()
+                    _val = _m.group(2).strip()
+                    _kv_lines.append(f"**{_key}**: {_val}")
+                else:
+                    _kv_lines.append(_ln)
+        raw = '\n'.join(_kv_lines)
+        # 空格对齐表格（如八字四柱）→ markdown 表格
+        # 规则：数据行列数必须完全一致(N)；表头行允许 N-1 列且缩进更大 → 前面补空
+        # 列数参差（如紫微宫格盘）→ 不转换，保持原样
+        lines0 = raw.split('\n')
+        out0 = []
+        i0 = 0
+        while i0 < len(lines0):
+            l0 = lines0[i0]
+            c0 = [c for c in _mdre.split(r'\s{2,}', l0.strip()) if c]
+            if len(c0) >= 2 and not l0.strip().startswith('|'):
+                # 收集块
+                blk = [(l0, c0)]
+                j0 = i0 + 1
+                while j0 < len(lines0):
+                    cj = [c for c in _mdre.split(r'\s{2,}', lines0[j0].strip()) if c]
+                    if len(cj) >= 2 and not lines0[j0].strip().startswith('|') and not _mdre.match(r'^[-=]{3,}$', lines0[j0].strip()):
+                        blk.append((lines0[j0], cj)); j0 += 1
+                    else:
+                        break
+                if len(blk) >= 2:
+                    # 数据行（blk[1:]）列数必须全部一致，且至少 4 行（防紫微宫格误转）
+                    _data_lens = set(len(x[1]) for x in blk[1:])
+                    if len(_data_lens) == 1 and len(blk[1:]) >= 4:
+                        _N = _data_lens.pop()
+                        _hdr_c = len(blk[0][1])
+                        _rows = []
+                        if _hdr_c == _N:
+                            _rows.append(blk[0][1])
+                        elif _hdr_c == _N - 1:
+                            # 表头缩进更大（右对齐）→ 前面补空列
+                            _rows.append([''] + blk[0][1])
+                        else:
+                            _rows = None
+                        if _rows is not None:
+                            for _, cj in blk[1:]:
+                                _rows.append(cj)
+                            out0.append('|' + '|'.join(_rows[0]) + '|')
+                            out0.append('|' + '---|' * _N)
+                            for _r in _rows[1:]:
+                                out0.append('|' + '|'.join(_r) + '|')
+                            i0 = j0
+                            continue
+            out0.append(l0); i0 += 1
+        raw = '\n'.join(out0)
+        # 连续 | 行块：第二行非分隔行则补分隔行
+        lines = raw.split('\n')
+        out = []
+        i = 0
+        while i < len(lines):
+            l = lines[i]
+            if l.strip().startswith('|'):
+                block = [l.strip()]
+                j = i + 1
+                while j < len(lines) and lines[j].strip().startswith('|'):
+                    block.append(lines[j].strip()); j += 1
+                if len(block) >= 2 and not _mdre.match(r'^\|[\s:\-|]+\|$', block[1]):
+                    ncols = max(1, block[0].count('|') - 1)
+                    sep = '|' + '---|' * ncols
+                    out.extend(block[:1] + [sep] + block[1:])
+                else:
+                    out.extend(block)
+                i = j
+            else:
+                out.append(l); i += 1
+        return '\n'.join(out)
+    
     if request.method == "POST":
         data = request.get_json(silent=True) or request.form or {}
         birthdate = data.get("birthdate", "") or (data.get("bdate","") + " " + (data.get("btime","") or "12:00")).strip()
-        mode = data.get("mode", "bazi")
+        # mode 读取：优先 modeStr（多选逗号分隔），否则表单 getlist 合并
+        if data.get("modeStr"):
+            mode = str(data["modeStr"]).strip().rstrip(",")
+        elif isinstance(data, dict) and "mode" in request.form and hasattr(request.form, "getlist"):
+            _ml = request.form.getlist("mode")
+            mode = ",".join(_ml)
+        else:
+            mode = str(data.get("mode", "bazi") or "bazi")
+        # 时家术数（奇门/六壬/梅花/金口诀/小六壬）以当下时辰起盘，生辰只用于命理类
+        SHI_JIA = {"qimen", "liuren", "meihua", "jinkoujue", "xiaoliuren"}
+        _mode_list = [m.strip() for m in str(mode).split(",") if m.strip()]
+        if _mode_list and all(m in SHI_JIA for m in _mode_list):
+            birthdate = ""  # 全为时家 → 不传 → 脚本自动用当前时间
+        elif any(m in SHI_JIA for m in _mode_list) and _mode_list:
+            # 混合（时家+命理）：时家部分需用当下时间，命理用生辰 → 交给主引擎时按需处理
+            pass
         is_form = request.content_type and "form" in request.content_type
         
         try:
@@ -3858,20 +4329,34 @@ def steward():
                 try:
                     from 五运六气 import 推算 as _wuyun
                     wu = _wuyun(birthdate[:10] if len(birthdate) >= 10 else None)
-                    raw = json.dumps(wu, ensure_ascii=False, indent=2)[:6000]
+                    raw = _fmt_wuyun(wu)
                 except Exception as _we:
                     raw = f"五运六气计算错误: {_we}"
             elif mode == "xiaoliuren":
                 try:
-                    parts = birthdate.replace("-"," ").replace(":"," ").split()
-                    if len(parts) >= 4:
-                        xl_args = [str(int(parts[1])), str(int(parts[2])), str(int(parts[3]))]
-                        xl_r = _sp.run(["xiaoliuren", "--time"] + xl_args, capture_output=True, text=True, timeout=10)
-                    else:
-                        xl_r = _sp.run(["xiaoliuren", "3", "5", "7"], capture_output=True, text=True, timeout=10)
+                    from datetime import datetime as _xlnow
+                    _n = _xlnow.now()
+                    xl_args = [str(_n.month), str(_n.day), str((_n.hour + 1) // 2)]
+                    xl_r = _sp.run(["xiaoliuren", "--time"] + xl_args, capture_output=True, text=True, timeout=10)
                     raw = (xl_r.stdout or "")[:5000] or (xl_r.stderr or "")[:2000] or "暂无输出"
                 except Exception as _xe:
                     raw = f"小六壬调用错误: {_xe}"
+            elif mode in ("qizheng", "tieban"):
+                # 七政四余 / 铁板神数（命理类，用生辰）——并入玄学管家
+                try:
+                    import new_tools_steward as _nts
+                    _dt2 = (data.get("bdate","") + " " + (data.get("btime","") or "12:00")).strip()
+                    _d2, _t2 = _dt2.split() if " " in _dt2 else (_dt2, "12:00")
+                    _lon2 = float(data.get("longitude", "120") or 120)
+                    _lat2 = float(data.get("latitude", "30") or 30)
+                    if mode == "qizheng":
+                        _res = _nts.cast_qizheng(_d2, _t2, data.get("sex", "1"), lon=_lon2, lat=_lat2)
+                        raw = "【七政四余】\n" + _nts._fmt_qizheng(_res)
+                    else:
+                        _res = _nts.cast_tieban(_d2, _t2, data.get("sex", "1"), lon=_lon2, lat=_lat2)
+                        raw = "【铁板神数】\n" + _nts._fmt_tieban(_res)
+                except Exception as _ne:
+                    raw = f"七政/铁板调用错误: {_ne}"
             elif dual == "double":
                 # 双人模式：算两个人的盘
                 bd2 = (data.get("bdate2","") + " " + (data.get("btime2","") or "12:00")).strip()
@@ -3890,15 +4375,70 @@ def steward():
                     raw_p2 = f"第二人排盘错误"
                 raw = f"第一人：\n{raw_p1}\n\n第二人：\n{raw_p2}"
             else:
-                r = _sp.run(["python3", steward_script,
-                            "--birthdate", birthdate,
-                            "--sex", data.get("sex", "1"),
-                            "--birthplace", data.get("longitude", "120"),
-                            "--mode", mode] + extra,
-                           capture_output=True, text=True, timeout=20)
-                raw = (r.stdout or "")[:6000]
-                if not raw:
-                    raw = (r.stderr or "")[:2000] or "暂无输出"
+                # 多选支持：mode 可为逗号分隔（如 "bazi,ziwei"），逐个跑并累加
+                _modes = [m.strip() for m in mode.split(",") if m.strip()]
+                if not _modes:
+                    _modes = ["bazi"]
+                _raw_parts = []
+                for _m in _modes:
+                    if _m == "xiaoliuren":
+                        # 小六壬不走 steward.py（不支持该 mode），单独调用
+                        try:
+                            from datetime import datetime as _xlnow
+                            _n = _xlnow.now()
+                            _xl_args = [str(_n.month), str(_n.day), str((_n.hour + 1) // 2)]
+                            _xl_r = _sp.run(["xiaoliuren", "--time"] + _xl_args, capture_output=True, text=True, timeout=10)
+                            _out = (_xl_r.stdout or "").strip()[:6000] or (_xl_r.stderr or "")[:2000] or "暂无输出"
+                        except Exception as _xe:
+                            _out = f"小六壬调用错误: {_xe}"
+                        _raw_parts.append(f"【{_m}】\n{_out}")
+                        continue
+                    if _m in ("qizheng", "tieban"):
+                        # 七政四余/铁板神数：走 new_tools_steward（steward.py 不支持）
+                        try:
+                            import new_tools_steward as _nts
+                            _dt2 = birthdate or (str(data.get("bdate","")) + " " + str(data.get("btime","") or "12:00")).strip()
+                            _d2, _t2 = _dt2.split() if " " in _dt2 else (_dt2, "12:00")
+                            _lon2 = float(data.get("longitude", "120") or 120)
+                            _lat2 = float(data.get("latitude", "30") or 30)
+                            if _m == "qizheng":
+                                _res = _nts.cast_qizheng(_d2, _t2, data.get("sex", "1"), lon=_lon2, lat=_lat2)
+                                _out = _nts._fmt_qizheng(_res)[:6000]
+                            else:
+                                _res = _nts.cast_tieban(_d2, _t2, data.get("sex", "1"), lon=_lon2)
+                                _out = _nts._fmt_tieban(_res)[:6000]
+                        except Exception as _ne:
+                            _out = f"{_m}调用错误: {_ne}"
+                        _raw_parts.append(f"【{_m}】\n{_out}")
+                        continue
+                    if _m == "wuyunliuqi":
+                        # 五运六气：走专属推算
+                        try:
+                            from 五运六气 import 推算 as _wuyun
+                            _d3 = (birthdate or (str(data.get("bdate","")) + " " + str(data.get("btime","") or "12:00")).strip())[:10]
+                            _out = _fmt_wuyun(_wuyun(_d3 or None))
+                        except Exception as _we:
+                            _out = f"五运六气计算错误: {_we}"
+                        _raw_parts.append(f"【{_m}】\n{_out}")
+                        continue
+                    try:
+                        _r = _sp.run(["python3", steward_script,
+                                    "--birthdate", birthdate,
+                                    "--sex", data.get("sex", "1"),
+                                    "--birthplace", data.get("longitude", "120"),
+                                    "--mode", _m] + extra,
+                                   capture_output=True, text=True, timeout=20)
+                        _out = (_r.stdout or "").strip()[:6000]
+                        if not _out:
+                            _out = (_r.stderr or "")[:2000] or "暂无输出"
+                        _raw_parts.append(f"【{_m}】\n{_out}")
+                    except Exception as _me:
+                        _raw_parts.append(f"【{_m}】错误: {_me}")
+                raw = "\n\n".join(_raw_parts)[:9000]
+            # 当下测算带目的 → 注入盘面开头
+            _purpose = str(data.get("purpose", "") or "").strip()[:30]
+            if _purpose and any(m in SHI_JIA for m in _mode_list):
+                raw = f"🎯 求测目的: {_purpose}\n" + raw
             
             # AI 解读
             interpretation = ""
@@ -3941,26 +4481,60 @@ def steward():
                 h += 'h1{font-size:20px;margin-bottom:2px}.sub{color:#888;font-size:.8rem;margin-bottom:16px}'
                 h += '.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}'
                 h += '.ctitle{font-size:14px;font-weight:600;color:#b8453a;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f0ebe6}'
-                h += '.intro{font-size:15px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word}'
+                h += '.intro{font-size:15px;line-height:1.7;word-wrap:break-word}'
+                h += '.intro table{border-collapse:collapse;margin:8px 0;width:100%;font-size:13px}'
+                h += '.intro th,.intro td{border:1px solid #e0d8d2;padding:6px 8px;text-align:left}'
+                h += '.intro th{background:#b8453a11;color:#b8453a}'
+                h += '.intro blockquote{margin:8px 0;padding:8px 12px;background:#faf5f0;border-left:3px solid #b8453a;color:#555;border-radius:0 8px 8px 0}'
+                h += '.intro hr{border:none;border-top:1px dashed #e0d8d2;margin:16px 0}'
                 h += '.raw-box{font-size:12px;font-family:monospace;color:#555;white-space:pre-wrap;word-wrap:break-word}'
-                h += '.tog{font-size:12px;color:#4a7dff;cursor:pointer;text-align:center;margin:4px auto;display:block}'
+                h += '.tog{font-size:12px;color:#a0522d;cursor:pointer;text-align:center;margin:4px auto;display:block}'
                 h += '.btn{display:block;padding:12px;background:#b8453a;color:#fff;border-radius:10px;text-align:center;text-decoration:none}'
                 h += '.footer{text-align:center;margin-top:14px;color:#888;font-size:.8rem}'
-                h += 'a{color:#4a7dff;text-decoration:none}'
+                h += 'a{color:#a0522d;text-decoration:none}'
                 h += '</style></head><body>'
                 h += '<h1>\U0001f9d9 ' + esc(mode) + '</h1>'
                 h += '<p class="sub">' + esc(birthdate) + '</p>'
-                if interpretation:
-                    h += '<div class="card"><div class="ctitle">\U0001f4ac \u89e3\u8bfb</div><div class="intro">' + esc(interpretation) + '</div></div>'
+                # 多选：按 【xxx】 分段，每个术数一个卡片直接展开；单选保持原样
+                import re as _seg
+                _multi = ',' in str(mode)
+                if _multi:
+                    _NAME = {"bazi":"八字","ziwei":"紫微","qizheng":"七政四余","tieban":"铁板神数","wuyunliuqi":"五运六气","qimen":"奇门遁甲","liuren":"大六壬","meihua":"梅花易数","jinkoujue":"金口诀","xiaoliuren":"小六壬"}
+                    _segs = _seg.split(r'【', raw)
+                    _seg_payload = []
+                    for _s in _segs:
+                        if not _s.strip():
+                            continue
+                        if '】' in _s:
+                            _nm, _body = _s.split('】', 1)
+                            _nm2 = _NAME.get(_nm.strip(), _nm.strip())
+                            _seg_payload.append({"t": _nm2, "b": _clean_md(_body.strip())[:6000]})
+                        else:
+                            _seg_payload.append({"t": "", "b": _clean_md(_s.strip())[:6000]})
+                    for _sp in _seg_payload:
+                        _tpart = ('<div class="ctitle">' + esc(_sp["t"]) + '</div>') if _sp["t"] else ''
+                        h += '<div class="card">' + _tpart + '<div class="intro">' + _md_to_html(_sp["b"]) + '</div></div>'
+                    _seg_json = [x["b"] for x in _seg_payload]
                 else:
-                    h += '<div class="card"><div class="ctitle">\U0001f4cb \u6392\u76d8\u6570\u636e</div><div class="intro">' + esc(raw[:2000]) + '</div></div>'
-                h += '<span class="tog" onclick="var r=document.getElementById(\'r\');r.style.display=r.style.display==\'none\'?\'block\':\'none\'">\U0001f50d \u67e5\u770b\u539f\u59cb\u6570\u636e</span>'
-                h += '<div id="r" class="card" style="display:none"><div class="raw-box">' + esc(raw[:5000]) + '</div></div>'
+                    # 单选：解读 + 排盘数据都走服务端 markdown 渲染
+                    _single_payload = []
+                    if interpretation:
+                        h += '<div class="card"><div class="ctitle">\U0001f4ac \u89e3\u8bfb</div><div class="intro">' + _md_to_html(interpretation) + '</div></div>'
+                        _single_payload.append(interpretation)
+                    h += '<div class="card"><div class="ctitle">\U0001f4cb \u6392\u76d8\u6570\u636e</div><div class="intro">' + _md_to_html(_clean_md(raw)[:6000]) + '</div></div>'
+                    _single_payload.append(_clean_md(raw)[:6000])
+                    h += '<span class="tog" onclick="var r=document.getElementById(\'r\');r.style.display=r.style.display==\'none\'?\'block\':\'none\'">\U0001f50d \u67e5\u770b\u539f\u59cb\u6570\u636e</span>'
+                    h += '<div id="r" class="card" style="display:none"><div class="raw-box">' + esc(raw[:5000]) + '</div></div>'
+                    _seg_json = _single_payload
                 h += '<button class="btn" style="margin-bottom:12px" onclick="aiDeep()">\U0001f52e AI \u6df1\u5ea6\u5206\u6790</button><div id="aiOut"></div>'
                 h += '<a class="btn" href="/steward">\u518d\u7b97\u4e00\u6b21</a>'
                 h += '<div class="footer"><a href="/tools">\u2190 \u5de5\u5177\u53f0</a></div>'
                 h += '<script>' + _MD_RENDER_JS + '</script>'
-                h += '<script>var aiRaw=' + json.dumps(raw[:6000], ensure_ascii=False) + ';'
+                if '_seg_json' in locals() or '_seg_json' in globals():
+                    h += '<script>var segArr=' + json.dumps(locals().get('_seg_json', []), ensure_ascii=False) + ';'
+                    h += "var segEls=document.querySelectorAll('[id^=\"segmd\"]');"
+                    h += 'for(var si=0;si<segArr.length && si<segEls.length;si++){segEls[si].innerHTML=mdRender(segArr[si]);}</script>'
+                h += '<script>var aiRaw=' + json.dumps(_clean_md(raw)[:6000], ensure_ascii=False) + ';'
                 h += 'async function aiDeep(){var out=document.getElementById(\'aiOut\');if(out.innerHTML){out.innerHTML=\'\';return}'
                 h += 'out.innerHTML=\'<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>\';'
                 h += 'var _t=setTimeout(function(){out.innerHTML=\'<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>\';},30000);'
@@ -3981,8 +4555,8 @@ def steward():
                 h += 'body{font-family:system-ui,sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto}'
                 h += 'h1{font-size:18px;margin-bottom:12px}'
                 h += '.error{background:#fef2f0;color:#b8453a;padding:14px;border-radius:10px;font-size:14px}'
-                h += '.btn{display:block;padding:12px;background:#4a7dff;color:#fff;border-radius:10px;text-align:center;text-decoration:none;margin-top:16px}'
-                h += 'a{color:#4a7dff;text-decoration:none}'
+                h += '.btn{display:block;padding:12px;background:#a0522d;color:#fff;border-radius:10px;text-align:center;text-decoration:none;margin-top:16px}'
+                h += 'a{color:#a0522d;text-decoration:none}'
                 h += '</style></head><body>'
                 h += '<h1>\U0001f9d9 \u9519\u8bef</h1>'
                 h += '<div class="error">' + html.escape(err) + '</div>'
@@ -4001,28 +4575,32 @@ def tools():
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>工具台 · 莫名心小站</title>
 <style>
-:root{--bg:#f5f5f5;--card:#fff;--text:#222;--text-l:#666;--shadow:0 1px 4px rgba(0,0,0,.08)}
-body.dark{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--shadow:0 1px 4px rgba(0,0,0,.3)}
+:root{--bg:#f7f2ec;--card:#fffdf9;--text:#3d3a36;--text-l:#8a827a;--accent:#a0522d;--accent-2:#c68a5d;--line:#e8dfd3;--shadow:0 2px 10px rgba(160,82,45,.08)}
+body.dark{--bg:#16161a;--card:#1e1e24;--text:#ece8dc;--text-l:#b0a898;--accent:#c68a5d;--line:#3a3a40;--shadow:0 2px 10px rgba(0,0,0,.3)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:16px;max-width:100%;margin:0 auto;padding-bottom:60px}
-h1{font-size:1.3rem;margin-bottom:4px}
-.sub{color:var(--text-l);font-size:.82rem;margin-bottom:16px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);padding:20px 16px;max-width:100%;margin:0 auto;padding-bottom:60px}
+h1{font-size:1.35rem;color:var(--accent);margin-bottom:4px}
+.sub{color:var(--text-l);font-size:.84rem;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:480px){.grid{grid-template-columns:1fr}}
-.card{background:var(--card);border-radius:12px;padding:16px;box-shadow:var(--shadow);text-decoration:none;color:var(--text);transition:.2s;display:flex;flex-direction:column;align-items:center;text-align:center}
-.card:hover{box-shadow:0 3px 12px rgba(0,0,0,.12);transform:translateY(-1px)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 14px;box-shadow:var(--shadow);text-decoration:none;color:var(--text);transition:.2s;display:flex;flex-direction:column;align-items:center;text-align:center}
+.card:hover{box-shadow:0 4px 16px rgba(160,82,45,.14);transform:translateY(-1px);border-color:var(--accent-2)}
 .card-icon{font-size:2rem;margin-bottom:8px}
-.card-name{font-weight:600;font-size:.95rem;margin-bottom:4px}
+.card-name{font-weight:600;font-size:.95rem;margin-bottom:4px;color:var(--text)}
 .card-desc{color:var(--text-l);font-size:.78rem;line-height:1.4}
 .card .badge{font-size:.7rem;padding:2px 8px;border-radius:10px;margin-top:6px}
-.badge-new{background:#4a7dff22;color:#4a7dff}
+.badge-new{background:#a0522d22;color:#a0522d}
 .badge-ok{background:#27ae6022;color:#27ae60}
-.footer{text-align:center;color:var(--text-l);font-size:.78rem;margin-top:24px}
-.footer a{color:#4a7dff;text-decoration:none}
+.footer{text-align:center;color:var(--text-l);font-size:.78rem;margin-top:28px}
+.footer a{color:var(--accent);text-decoration:none}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.nav a{display:inline-block;padding:6px 14px;background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--accent);font-size:.84rem;text-decoration:none}
+.nav a:hover{background:var(--accent);color:#fff}
 </style></head><body>
 <script>
 (function(){try{if(localStorage.getItem('xiaozhan_dark_mode')==='true')document.body.classList.add('dark')}catch(e){}})();
 </script>
+<div class="nav"><a href="/">🏠 首页</a><a href="/steward">🧙 玄学管家</a><a href="/arsenal">🎯 弹药弹夹</a></div>
 <h1>🧩 莫名心·工具台</h1>
 <p class="sub">小站全部工具 — 移动端适配</p>
 
@@ -4080,43 +4658,8 @@ h1{font-size:1.3rem;margin-bottom:4px}
 <a href="/steward" class="card">
 <div class="card-icon">🧙</div>
 <div class="card-name">玄学管家</div>
-<div class="card-desc">八字·紫微·奇门·六壬</div>
-<span class="badge badge-new">NEW</span>
-</a>
-
-<a href="/steward-new" class="card">
-<div class="card-icon">🪐</div>
-<div class="card-name">七政·铁板</div>
-<div class="card-desc">七政四余·铁板神数</div>
-<span class="badge badge-new">NEW</span>
-</a>
-
-<a href="/bazi-ziwei" class="card">
-<div class="card-icon">⚖️</div>
-<div class="card-name">八字·紫微印证</div>
-<div class="card-desc">双体系交叉对账</div>
-<span class="badge badge-new">NEW</span>
-</a>
-
-<a href="/qimen" class="card">
-<div class="card-icon">🗺️</div>
-<div class="card-name">奇门遁甲</div>
-<div class="card-desc">九宫格局·拆补法</div>
-<span class="badge badge-new">NEW</span>
-</a>
-
-<a href="/liuyao" class="card">
-<div class="card-icon">⚡</div>
-<div class="card-name">六爻纳甲</div>
-<div class="card-desc">三币摇卦·六亲神煞</div>
-<span class="badge badge-new">NEW</span>
-</a>
-
-<a href="/jyotish" class="card">
-<div class="card-icon">🌏</div>
-<div class="card-name">印占·西洋·太乙·梅花</div>
-<div class="card-desc">四体系排盘</div>
-<span class="badge badge-new">NEW</span>
+<div class="card-desc">术数总入口 · 八字紫微奇门六爻星盘七政</div>
+<span class="badge badge-new">算命台</span>
 </a>
 
 <a href="/poetry" class="card">
