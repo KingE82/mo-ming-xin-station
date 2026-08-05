@@ -64,6 +64,12 @@ try:
     app.register_blueprint(tools_bp)
 except Exception:
     pass
+# KX 神迹（跨领域融合档案）
+try:
+    from kxwonders_route import kx_bp
+    app.register_blueprint(kx_bp)
+except Exception as e:
+    print(f"kxwonders 注册失败: {e}")
 
 
 def ping():
@@ -707,7 +713,7 @@ function renderMD(t) {
   return t
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/```(\\w*)\\n([\\s\\S]*?)```/g,'<pre><code>$2</code></pre>')
-    .replace(/\`([^']+)\`/g,'<code>$1</code>')
+    .replace(/\\`([^']+)\\`/g,'<code>$1</code>')
     .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
     .replace(/^\s*[-*+] (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\\n?)+/g,'<ul>$&</ul>')
@@ -1302,7 +1308,12 @@ async function run(){
     var h='<div class="hit"><div class="t">📚 回答</div>'+d.answer+'</div>';
     if(d.sources&&d.sources.length){
       h+='<div class="hit"><div class="t">📎 引用来源</div>';
-      d.sources.forEach(function(s){h+='<span class="src">'+s.title+' ('+s.score+')</span>'});
+      d.sources.forEach(function(s){
+        h+='<div style="margin-bottom:10px">';
+        h+='<span class="src">'+s.title+' ('+s.score+')</span>';
+        if(s.text){h+='<blockquote style="margin:6px 0 0;padding:6px 10px;border-left:3px solid #4a7dff55;background:#4a7dff0a;font-size:13px;color:#555">'+s.text+'…</blockquote>'}
+        h+='</div>';
+      });
       h+='</div>';
     }
     document.getElementById('result').innerHTML=h;
@@ -1329,7 +1340,8 @@ def kx_api():
         result = _kx.ask(q, top_k=3)
         answer = html.escape(result.get("answer", ""))[:6000]
         sources = [
-            {"title": s["title"][:80], "score": s["score"], "path": s.get("path", "")[:120]}
+            {"title": s["title"][:80], "score": s["score"], "path": s.get("path", "")[:120],
+             "text": s.get("text", "")[:200]}
             for s in result.get("sources", [])
         ]
         return jsonify({"answer": answer.replace("\n", "<br>"), "sources": sources})
@@ -1428,25 +1440,78 @@ async function aiRead(btn,ev){
   try{
     const r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:pre.textContent.slice(0,800),scene:'poetry'})});
     const d=await r.json();
-    box.innerHTML=d.error?'<div class="empty">'+d.error+'</div>':'<div class="ai-body">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
+    box.innerHTML=d.error?'<div class="empty">'+d.error+'</div>':'<div class="ai-body">'+mdRender(d.answer)+'</div>';
   }catch(e){box.innerHTML='<div class="empty">请求失败</div>';}
 }
 go();
 
+
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
 
 async function aiXuan(btn){
   var out=document.getElementById('aiOut');
   if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
   if(out.innerHTML){out.innerHTML='';return}
   out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var _t=setTimeout(function(){out.innerHTML='<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>';},30000);
   var hit=btn.parentNode.querySelector('.hit');
   var report=hit?hit.innerText:'';
   if(!report) report=btn.parentNode.innerText;
   try{
     var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
-    var d=await r.json();
-    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
-  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+    var d=await r.json();clearTimeout(_t);
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+mdRender(d.answer)+'</div>';
+  }catch(e){clearTimeout(_t);out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
 }
 </script></body></html>"""
 
@@ -1617,7 +1682,7 @@ async function run(){
     var d=await r.json();
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
-    var h='<div class="hit"><div class="t">🌏 三体系排盘</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    var h='<div class="hit"><div class="t">🌏 三体系排盘</div>'+mdRender(d.report)+'</div><button class="btn" style="background:#d35400" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
     document.getElementById('result').innerHTML=h;
   }catch(e){
     document.getElementById('loading').style.display='none';
@@ -1625,19 +1690,72 @@ async function run(){
   }
   b.disabled=false;
 }
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
+
 async function aiXuan(btn){
   var out=document.getElementById('aiOut');
   if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
   if(out.innerHTML){out.innerHTML='';return}
   out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var _t=setTimeout(function(){out.innerHTML='<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>';},30000);
   var hit=btn.parentNode.querySelector('.hit');
   var report=hit?hit.innerText:'';
   if(!report) report=btn.parentNode.innerText;
   try{
     var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
-    var d=await r.json();
-    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
-  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+    var d=await r.json();clearTimeout(_t);
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+mdRender(d.answer)+'</div>';
+  }catch(e){clearTimeout(_t);out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
 }
 </script></body></html>"""
 
@@ -1747,7 +1865,7 @@ async function run(){
     var d=await r.json();
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
-    var h='<div class="hit"><div class="t">⚡ 六爻卦</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    var h='<div class="hit"><div class="t">⚡ 六爻卦</div>'+mdRender(d.report)+'</div><button class="btn" style="background:#27ae60" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
     document.getElementById('result').innerHTML=h;
   }catch(e){
     document.getElementById('loading').style.display='none';
@@ -1755,19 +1873,72 @@ async function run(){
   }
   b.disabled=false;
 }
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
+
 async function aiXuan(btn){
   var out=document.getElementById('aiOut');
   if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
   if(out.innerHTML){out.innerHTML='';return}
   out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var _t=setTimeout(function(){out.innerHTML='<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>';},30000);
   var hit=btn.parentNode.querySelector('.hit');
   var report=hit?hit.innerText:'';
   if(!report) report=btn.parentNode.innerText;
   try{
     var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
-    var d=await r.json();
-    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
-  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+    var d=await r.json();clearTimeout(_t);
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+mdRender(d.answer)+'</div>';
+  }catch(e){clearTimeout(_t);out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
 }
 </script></body></html>"""
 
@@ -1851,7 +2022,7 @@ async function run(){
     var d=await r.json();
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
-    var h='<div class="hit"><div class="t">🗺️ 奇门盘</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    var h='<div class="hit"><div class="t">🗺️ 奇门盘</div>'+mdRender(d.report)+'</div><button class="btn" style="background:#2980b9" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
     document.getElementById('result').innerHTML=h;
   }catch(e){
     document.getElementById('loading').style.display='none';
@@ -1859,19 +2030,72 @@ async function run(){
   }
   b.disabled=false;
 }
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
+
 async function aiXuan(btn){
   var out=document.getElementById('aiOut');
   if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
   if(out.innerHTML){out.innerHTML='';return}
   out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var _t=setTimeout(function(){out.innerHTML='<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>';},30000);
   var hit=btn.parentNode.querySelector('.hit');
   var report=hit?hit.innerText:'';
   if(!report) report=btn.parentNode.innerText;
   try{
     var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
-    var d=await r.json();
-    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
-  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+    var d=await r.json();clearTimeout(_t);
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+mdRender(d.answer)+'</div>';
+  }catch(e){clearTimeout(_t);out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
 }
 </script></body></html>"""
 
@@ -1904,7 +2128,7 @@ def qimen_api():
 @login_required
 def bazi_ziwei_page():
     """八字 + 紫微综合印证"""
-    return """<!DOCTYPE html><html lang="zh-CN"><head>
+    html = """<!DOCTYPE html><html lang="zh-CN"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>八字+紫微印证 · 莫名心小站</title>
@@ -1930,56 +2154,315 @@ input:focus,select:focus{border-color:#b8453a}
 .footer{text-align:center;margin-top:20px;font-size:12px;color:#999}
 a{color:#b8453a;text-decoration:none}
 .note{font-size:11px;color:#999;text-align:center;margin-top:14px}
+/* 喜忌卡片样式 */
+.sec{background:#fff;border-radius:14px;padding:16px 18px;margin-top:10px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.sec h3{margin:0 0 10px;font-size:15px;color:#333;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pill{display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:600;margin-right:6px}
+.pill-red{background:#e74c3c22;color:#e74c3c;border:1px solid #e74c3c55}
+.pill-green{background:#27ae6022;color:#27ae60;border:1px solid #27ae6055}
+.pill-gold{background:#f39c1222;color:#d68910;border:1px solid #f39c1255}
+.pill-gray{background:#7f8c8d22;color:#7f8c8d;border:1px solid #7f8c8d55}
+.xj-grid{display:flex;gap:8px;flex-wrap:wrap}
+.xj-box{flex:1;min-width:120px;background:#faf7f3;border-radius:10px;padding:10px 12px}
+.xj-box .lb{font-size:11px;color:#888;margin-bottom:6px}
+.xj-box .val{font-weight:700;font-size:14px}
+.xi-chips span{display:inline-block;background:#27ae6022;color:#27ae60;border:1px solid #27ae6055;padding:2px 10px;border-radius:10px;font-size:12px;margin:2px}
+.ji-chips span{display:inline-block;background:#e74c3c22;color:#e74c3c;border:1px solid #e74c3c55;padding:2px 10px;border-radius:10px;font-size:12px;margin:2px}
+.reason{background:#fdfaf5;border-left:3px solid #b8453a;border-radius:0 8px 8px 0;padding:8px 12px;font-size:12px;color:#555;line-height:1.8;margin-top:10px}
+.reason b{color:#b8453a}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.grid2 .mini{background:#faf7f3;border-radius:10px;padding:10px 12px}
+.grid2 .lb{font-size:11px;color:#888;margin-bottom:4px}
+.table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.table td{padding:5px 8px;border-bottom:1px solid #f0ebe5}
+.table td:first-child{color:#888;width:110px}
+/* 岁运卡样式 */
+.dy-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid #f0ebe5;font-size:13px}
+.dy-row:last-child{border-bottom:none}
+.dy-tag{flex:none;min-width:52px;text-align:center;padding:3px 8px;border-radius:8px;font-size:12px;font-weight:700}
+.dy-green{background:#27ae6022;color:#27ae60;border:1px solid #27ae6055}
+.dy-red{background:#e74c3c22;color:#e74c3c;border:1px solid #e74c3c55}
+.dy-gray{background:#7f8c8d22;color:#7f8c8d;border:1px solid #7f8c8d55}
+.dy-cur{background:#b8453a;color:#fff;padding:1px 6px;border-radius:6px;font-size:10px}
+.dy-info{flex:1;color:#333}
+.dy-info .age{color:#888;font-size:11px}
+.dy-keys{font-size:11px;color:#888;margin-top:2px}
+.dy-keys .gk{color:#27ae60}
+.dy-keys .xk{color:#e74c3c}
+
+/* 紫微宫位网格 */
+.zw-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.zw-cell{background:#faf7f3;border-radius:10px;padding:8px 10px;border:1px solid #f0ebe5}
+.zw-head{display:flex;align-items:baseline;gap:6px;margin-bottom:4px}
+.zw-gn{font-weight:700;font-size:13px;color:#b8453a}
+.zw-gz{font-size:11px;color:#999}
+.zw-stars{display:flex;flex-wrap:wrap;gap:3px}
+.zw-star{background:#b8453a11;color:#b8453a;border:1px solid #b8453a33;padding:1px 7px;border-radius:8px;font-size:11px}
+.zw-empty{color:#bbb;font-size:11px}
+.zw-auxs{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.zw-aux{background:#7f8c8d11;color:#7f8c8d;padding:1px 6px;border-radius:6px;font-size:10px}
+.zw-shs{margin-top:3px}
+.zw-sh{background:#f39c1222;color:#d68910;padding:1px 7px;border-radius:8px;font-size:10px}
 </style></head><body>
 <h1>⚖️ 八字 + 紫微印证</h1>
 <p class="sub">双体系交叉对账 · 算法精准排盘（不靠 LLM 猜）</p>
 <div class="card">
-  <label>出生日期</label>
-  <input type="date" id="bdate" value="2006-09-22">
+  <label>出生日期（年/月/日）</label>
+  <div class="row" style="margin-bottom:14px">
+    <div><select id="byear"></select></div>
+    <div><select id="bmonth"></select></div>
+    <div><select id="bday"></select></div>
+  </div>
   <div class="row">
     <div><label>时间</label><input type="time" id="btime" value="07:56"></div>
     <div><label>性别</label><select id="gender"><option value="male">男</option><option value="female">女</option></select></div>
   </div>
   <button class="btn" id="goBtn" onclick="run()">⚖️ 排盘印证</button>
 </div>
+<script>
+// 初始化年月日下拉框 (1900-今年)
+(function(){
+  var ySel=document.getElementById('byear'), mSel=document.getElementById('bmonth'), dSel=document.getElementById('bday');
+  var now=new Date(), y;
+  for(y=now.getFullYear(); y>=1900; y--){ var o=document.createElement('option'); o.value=y; o.text=y+'年'; if(y===2006)o.selected=true; ySel.appendChild(o); }
+  for(var m=1;m<=12;m++){ var o=document.createElement('option'); o.value=m; o.text=m+'月'; if(m===9)o.selected=true; mSel.appendChild(o); }
+  function fillDays(){
+    var y=+ySel.value, m=+mSel.value, dim=new Date(y,m,0).getDate();
+    dSel.innerHTML='';
+    for(var d=1;d<=dim;d++){ var o=document.createElement('option'); o.value=d; o.text=d+'日'; if(d===22)o.selected=true; dSel.appendChild(o); }
+  }
+  ySel.onchange=fillDays; mSel.onchange=fillDays; fillDays();
+})();
+</script>
 <div id="loading"><div class="spinner"></div><p>双引擎排盘中…</p></div>
 <div id="result"></div>
 <p class="note">🔒 纯本地计算 · 八字+紫微两套独立体系交叉对账</p>
 <p class="footer"><a href="/tools">← 返回工具台</a></p>
 <script>
-async function run(){
+function run(){
   var b=document.getElementById('goBtn');b.disabled=true;
   document.getElementById('loading').style.display='block';
   document.getElementById('result').innerHTML='';
-  var body={date:document.getElementById('bdate').value,time:document.getElementById('btime').value,gender:document.getElementById('gender').value};
-  try{
-    var r=await fetch('/bazi-ziwei',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
-    var d=await r.json();
+  var date=document.getElementById('byear').value+'-'+('00'+document.getElementById('bmonth').value).slice(-2)+'-'+('00'+document.getElementById('bday').value).slice(-2);
+  var body={date:date,time:document.getElementById('btime').value,gender:document.getElementById('gender').value};
+  // 15秒超时
+  var timer=setTimeout(function(){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求超时，请重试</div>';
+    b.disabled=false;
+  },15000);
+  fetch('/bazi-ziwei',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)})
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    clearTimeout(timer);
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
-    var h='<div class="hit"><div class="t">⚖️ 交叉印证结果</div>'+d.report+'</div><button class="ai-btn" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
+    var h='<div id="cards"></div><button class="btn" style="margin-top:6px" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
     document.getElementById('result').innerHTML=h;
-  }catch(e){
+    renderCards(d.report);
+    b.disabled=false;
+  })
+  .catch(function(e){
+    clearTimeout(timer);
     document.getElementById('loading').style.display='none';
     document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ 请求失败: '+e.message+'</div>';
-  }
-  b.disabled=false;
+    b.disabled=false;
+  });
 }
-async function aiXuan(btn){
+function renderCards(raw){
+  var c=document.getElementById('cards'); if(!c)return;
+  c.innerHTML='';
+  var seg={};
+  var parts=raw.split(/═══\s*([^═]+?)\s*═══/);
+  for(var i=1;i<parts.length;i+=2){seg[parts[i].trim()]=parts[i+1]||'';}
+  // ---- 四柱 卡 ----
+  if(seg['八字']||seg['八字 ']||seg[' 八字 ']){
+    var lines=(seg['八字']||'').split('\\n').map(function(s){return s.trim()}).filter(Boolean);
+    var map={}; lines.forEach(function(l){var j=l.indexOf(':');if(j>0)map[l.slice(0,j).trim()]=l.slice(j+1).trim()});
+    var dm=map['日主']||'?', ss=map['十神']||'', ny=map['纳音']||'—';
+    var html='<div class="sec"><h3>🌳 四柱 <span class="pill pill-gold">'+dm+' 日主</span></h3>';
+    html+='<div class="xj-grid">';
+    [['year','年'],['month','月'],['day','日'],['hour','时']].forEach(function(p){
+      html+='<div class="xj-box"><div class="lb">'+p[1]+'柱</div><div class="val" style="font-size:18px;letter-spacing:2px">'+map[p[0]]+'</div></div>'; });
+    html+='</div><table class="table"><tr><td>纳音</td><td>'+ny.replace(/year/g,'年').replace(/month/g,'月').replace(/day/g,'日').replace(/hour/g,'时')+'</td></tr>';
+    if(ss) html+='<tr><td>十神</td><td>'+ss.replace(/year/g,'年').replace(/month/g,'月').replace(/day/g,'日').replace(/hour/g,'时')+'</td></tr>';
+    var kwKey=Object.keys(seg).filter(function(k){return k.indexOf('空亡')>=0})[0];
+    if(kwKey){
+      var kwLine=seg[kwKey].split('\\n').map(function(s){return s.trim()}).filter(Boolean)[0]||'';
+      var kwTip=seg[kwKey].split('\\n').map(function(s){return s.trim()}).filter(Boolean)[1]||'';
+      if(kwLine) html+='<tr><td>空亡</td><td>'+kwLine.replace(/；.*/, '')+'</td></tr>';
+    }
+    html+='</table></div>';
+    c.innerHTML+=html;
+  }
+  // ---- 格局 卡 ----
+  var gName=null,gBasis='',gConf='';
+  var gjKey=Object.keys(seg).filter(function(k){return k.indexOf('格局')>=0})[0];
+  if(gjKey){ seg[gjKey].split('\\n').forEach(function(l){ l=l.trim();
+      var m=l.match(/格局[:：]\s*([^\s(（]+)/); if(m)gName=m[1];
+      m=l.match(/置信度(高|中|低)/); if(m)gConf=m[1];
+      m=l.match(/依据[:：]\s*(.+)/); if(m)gBasis=m[1]; });
+    if(gName){ var html='<div class="sec"><h3>🏛 格局 <span class="pill pill-gold">'+gName+'</span>'+(gConf?'<span class="pill pill-gray">'+gConf+'</span>':'')+'</h3>';
+      if(gBasis) html+='<div class="reason">'+gBasis+'</div>';
+      c.innerHTML+=html+'</div>'; } }
+  // ---- 喜忌神 核心卡 ----
+  var mode='?',wangTxt='',yong='',xi='',ji='',reasons=[];
+  var xjKey=Object.keys(seg).filter(function(k){return k.indexOf('喜忌')>=0})[0];
+  if(xjKey){ seg[xjKey].split('\\n').forEach(function(l){ l=l.trim(); if(!l)return;
+      var m=l.match(/身态[:：]\s*([^|]+)/); if(m)mode=m[1].trim();
+      m=l.match(/旺衰[:：]\s*([^|(（]+)/); if(m)wangTxt=m[1].trim();
+      m=l.match(/用神[:：]\s*(.+)/); if(m)yong=m[1].trim();
+      m=l.match(/喜神[:：]\s*(.+)/); if(m)xi=m[1].trim();
+      m=l.match(/忌神[:：]\s*(.+)/); if(m)ji=m[1].trim();
+      m=l.match(/^[·•]\s*(.+)/); if(m)reasons.push(m[1]); });
+    var modeColor=(mode.indexOf('弱')>=0)?'pill-red':((mode.indexOf('强')>=0)?'pill-gold':'pill-gray');
+    var modeTxt=mode+(wangTxt&&wangTxt!==mode?(' · '+wangTxt):'');
+    var html='<div class="sec" style="border-top:3px solid #b8453a"><h3>⚖️ 喜忌 · 用神 <span class="pill '+modeColor+'">'+modeTxt+'</span></h3>';
+    html+='<div class="xj-grid"><div class="xj-box"><div class="lb">用神</div><div class="val" style="color:#d68910;font-size:13px">'+(yong||'—')+'</div></div></div>';
+    html+='<div style="margin-top:8px"><div class="lb" style="font-size:11px;color:#888;margin-bottom:4px">喜神 · 宜</div><div class="xi-chips">'+((xi)?xi.split(/[、,，]/).map(function(s){return '<span>'+s+'</span>'}).join(''):'<span>—</span>')+'</div></div>';
+    html+='<div style="margin-top:8px"><div class="lb" style="font-size:11px;color:#888;margin-bottom:4px">忌神 · 忌</div><div class="ji-chips">'+((ji)?ji.split(/[、,，]/).map(function(s){return '<span>'+s+'</span>'}).join(''):'<span>—</span>')+'</div></div>';
+    if(reasons.length) html+='<div class="reason">'+reasons.map(function(r){return '<div>· '+r+'</div>'}).join('')+'</div>';
+    c.innerHTML+=html+'</div>'; }
+  // ---- 紫微 卡 ----
+  if(seg['紫微']||seg['紫微 ']||seg[' 紫微 ']){
+    var zw=seg['紫微']||seg['紫微 ']||seg[' 紫微 '];
+    var zwL=zw.trim().split('\\n').map(function(s){return s.trim()}).filter(Boolean);
+    var wx='?',mg='?',sg='?'; zwL.forEach(function(l){
+      if(l.indexOf('五行局')>=0){var i=l.indexOf(':'); if(i>0)wx=l.slice(i+1).trim();}
+      if(/^命宫:/.test(l)&&l.indexOf('身宫')>=0){var i=l.indexOf(':'); if(i>0){var a=l.slice(i+1).split('|'); mg=(a[0]||'?').trim(); sg=((a[1]||'').replace('身宫:','')).trim();}}
+      else if(/^命宫:/.test(l)){var i=l.indexOf(':'); if(i>0)mg=l.slice(i+1).trim();}
+    });
+    // 命宫/身宫: 拆干支 + 主星标签
+    function fmtMG(s){
+      var pi=s?s.indexOf('('):-1;
+      if(pi<=0)return s||'?';
+      var gz=s.slice(0,pi).trim(), stars=s.slice(pi+1, s.lastIndexOf(')'));
+      var sh=stars?stars.split(',').map(function(x){return '<span class="zw-star">'+x+'</span>'}).join(''):'<span class="zw-empty">空</span>';
+      return '<b style="font-size:15px">'+gz+'</b> '+sh;
+    }
+    var html='<div class="sec"><h3>🔮 紫微斗数 <span class="pill pill-gray">'+wx+'</span></h3>';
+    html+='<div class="grid2"><div class="mini"><div class="lb">命宫</div><div style="margin-top:2px">'+fmtMG(mg)+'</div></div><div class="mini"><div class="lb">身宫</div><div style="margin-top:2px">'+fmtMG(sg)+'</div></div></div>';
+    // 十二宫网格卡片
+    var gs=zwL.filter(function(l){return /^(命宫|兄弟|夫妻|子女|财帛|疾厄|迁移|交友|官禄|田宅|福德|父母)/.test(l)});
+    if(gs.length){
+      var grid='<div class="zw-grid">';
+      gs.forEach(function(l){
+        var m=l.match(/^([^\s]+)\s+([^\s]+):\s*主星\[([^\]]*)\]\s*辅星\[([^\]]*)\]\s*四化\[([^\]]*)\]/);
+        if(!m)return;
+        var gn=m[1], gz=m[2], stars=m[3], aux=m[4], sh=m[5];
+        var starHtml=stars?stars.split(',').map(function(x){return '<span class="zw-star">'+x+'</span>'}).join(''):'<span class="zw-empty">空</span>';
+        var auxHtml=aux&&aux!=='—'&&aux!=='-'?aux.split(',').map(function(x){return '<span class="zw-aux">'+x+'</span>'}).join(''):'';
+        var shHtml=sh&&sh!=='—'&&sh!=='-'?'<span class="zw-sh">'+sh+'</span>':'';
+        grid+='<div class="zw-cell"><div class="zw-head"><span class="zw-gn">'+gn+'</span><span class="zw-gz">'+gz+'</span></div><div class="zw-stars">'+starHtml+'</div>'+(auxHtml?'<div class="zw-auxs">'+auxHtml+'</div>':'')+(shHtml?'<div class="zw-shs">'+shHtml+'</div>':'')+'</div>';
+      });
+      grid+='</div>';
+      html+=grid;
+    } else {
+      html+='<div class="hit" style="margin-top:6px">'+zw.trim()+'</div>';
+    }
+    html+='</div>';
+    c.innerHTML+=html;
+  }
+// ---- 岁运十神 卡 ----
+  var syKey=Object.keys(seg).filter(function(k){return k.indexOf('岁运')>=0})[0];
+  if(syKey){
+    var syLines=seg[syKey].split('\\n').map(function(s){return s.trim()}).filter(Boolean);
+    var rows=syLines.map(function(l){
+      var m=l.match(/^([^\s(]+)\s*\(([^-]+)-([^)]+)岁\)\s*(吉运|逆运|平运|偏吉|偏逆)[(\[]([^)\]]+)/);
+      if(!m)return null;
+      var gz=m[1], a1=m[2], a2=m[3], label=m[4], lv=m[5];
+      var cur=l.indexOf('◀当前')>=0;
+      var gk='', xk='';
+      var gm=l.match(/吉年:([^\s]*)/); if(gm)gk=gm[1];
+      var xm=l.match(/凶年:([^\s]*)/); if(xm)xk=xm[1];
+      var cls=lv==='上'?'dy-green':(lv==='下'?'dy-red':'dy-gray');
+      var lab=label||lv;
+      return '<div class="dy-row"><span class="dy-tag '+cls+'">'+lab+'</span><div class="dy-info"><b>'+gz+'</b> <span class="age">'+a1+'-'+a2+'岁</span>'+(cur?' <span class="dy-cur">当前</span>':'')+'</div><div class="dy-keys">'+(gk?'<span class="gk">吉:'+gk+'</span> ':'')+(xk?'<span class="xk">凶:'+xk+'</span>':'')+'</div></div>';
+    }).filter(Boolean);
+    if(rows.length){
+      var html='<div class="sec"><h3>🌊 岁运十神 <span class="pill pill-gray">按喜忌评吉凶</span></h3>'+rows.join('')+'</div>';
+      c.innerHTML+=html;
+    }
+  }
+  if(!c.innerHTML){c.innerHTML='<div class="hit"><div class="t">⚖️ 交叉印证结果</div>'+raw+'</div>';}
+}
+// 轻量 Markdown 渲染 (AI 分析用)
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
+
+function aiXuan(btn){
   var out=document.getElementById('aiOut');
   if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
   if(out.innerHTML){out.innerHTML='';return}
   out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var _t=setTimeout(function(){out.innerHTML='<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>';},30000);
   var hit=btn.parentNode.querySelector('.hit');
   var report=hit?hit.innerText:'';
   if(!report) report=btn.parentNode.innerText;
-  try{
-    var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
-    var d=await r.json();
-    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
-  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+  fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    clearTimeout(_t);
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+mdRender(d.answer)+'</div>';
+  })
+  .catch(function(){clearTimeout(_t);out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';});
 }
 </script></body></html>"""
+
+    resp = make_response(html)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
 
 
 @app.route("/bazi-ziwei", methods=["POST"])
@@ -2000,7 +2483,7 @@ def bazi_ziwei_api():
         hh, mm = [int(x) for x in time_str.split(":")]
         bazi, ziwei = _bzs.run_chart(y, m, d, hh, mm, gender)
         report = _bzs.format_report(bazi, ziwei)
-        return jsonify({"report": html.escape(report)[:9000]})
+        return jsonify({"report": html.escape(report, quote=False)[:9000]})
     except Exception as e:
         return jsonify({"error": f"排盘失败: {str(e)[:200]}"}), 500
 
@@ -2066,8 +2549,8 @@ async function run(){
     document.getElementById('loading').style.display='none';
     if(d.error){document.getElementById('result').innerHTML='<div class="hit" style="color:#c0392b">❌ '+d.error+'</div>';b.disabled=false;return}
     var h='';
-    if(d.qizheng)h+='<div class="hit"><div class="t">🪐 七政四余</div>'+d.qizheng+'</div>';
-    if(d.tieban)h+='<div class="hit"><div class="t">📜 铁板神数</div>'+d.tieban+'</div>';
+    if(d.qizheng)h+='<div class="hit"><div class="t">🪐 七政四余</div>'+mdRender(d.qizheng)+'</div>';
+    if(d.tieban)h+='<div class="hit"><div class="t">📜 铁板神数</div>'+mdRender(d.tieban)+'</div>';
     if(!h)h='<div class="hit">无结果</div>';
     h+='<button class="btn" style="background:#8e44ad" onclick="aiXuan(this)">🔮 AI 深度分析</button><div id="aiOut"></div>';
     document.getElementById('result').innerHTML=h;
@@ -2077,17 +2560,70 @@ async function run(){
   }
   b.disabled=false;
 }
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
+
 async function aiXuan(btn){
   var out=document.getElementById('aiOut');
   if(!out){out=document.createElement('div');out.id='aiOut';btn.parentNode.appendChild(out)}
   if(out.innerHTML){out.innerHTML='';return}
   out.innerHTML='<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>';
+  var _t=setTimeout(function(){out.innerHTML='<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>';},30000);
   var report=document.getElementById('result').innerText;
   try{
     var r=await fetch('/ai-read',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:report.slice(0,6000),scene:'xuanxue_general'})});
-    var d=await r.json();
-    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+d.answer.replace(/\\n/g,'<br>')+'</div>';
-  }catch(e){out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
+    var d=await r.json();clearTimeout(_t);
+    out.innerHTML=d.error?'<div style="padding:12px;color:#c0392b">'+d.error+'</div>':'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">'+mdRender(d.answer)+'</div>';
+  }catch(e){clearTimeout(_t);out.innerHTML='<div style="padding:12px;color:#c0392b">请求失败</div>';}
 }
 </script></body></html>"""
 
@@ -2819,10 +3355,35 @@ def daogui():
     return generate_lib_page(category=cat, doc_id=doc)
 
 
-@app.route("/forge-destiny")
+@app.route("/forge-destiny", methods=["GET", "POST"])
 @login_required
 def forge_destiny():
-    """锻因缘"""
+    """锻因缘（v2：相变 + 真排盘合盘）"""
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        action = data.get("action")
+        # 动态导入 forge_engine（可热重启，不依赖启动时路径）
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "锻因缘"))
+        try:
+            import forge_engine as _fe
+        except Exception as _fe_err:
+            return {"success": False, "error": f"锻因缘引擎加载失败: {_fe_err}"}
+        try:
+            if action == "create":
+                return _fe.handle_create(data.get("user1") or {})
+            if action == "join":
+                return _fe.handle_join(data.get("code", ""), data.get("user2") or {})
+            return {"success": False, "error": "未知 action"}
+        except Exception as _e2:
+            return {"success": False, "error": str(_e2)}
+
+    # GET：静态页面 或 结果接口
+    code = request.args.get("code")
+    if code:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "锻因缘"))
+        import forge_engine as _fe
+        user = request.args.get("user", "1")
+        return _fe.handle_result(code, int(user))
     p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "锻因缘", "index.html")
     if os.path.isfile(p):
         with open(p, "r", encoding="utf-8") as f:
@@ -2909,14 +3470,20 @@ def poems():
         return str(t)[:8000]
 
     poems_list = []
+    # 短篇小说（叙事体，区别于诗）
+    STORY_FILES = {'计程车伴小时维德电台_论一颗心的死去.txt', '石竹.md', '灰烬认得归路.md', '灰城.md',
+                  '七处改血.md', '太空情书.md', '捕获协议.md', '朝问道.md', '此处.md', '笼中乡.md', '终产者的终产.md'}
     if os.path.isdir(POEM_DIR):
         for f in sorted(os.listdir(POEM_DIR)):
-            if f.endswith('.txt'):
-                title = f.replace('.txt', '')
+            if f.endswith('.txt') or f.endswith('.md'):
+                if f in ('读后记.md',):
+                    continue  # 阅读笔记不是作品
+                title = f.rsplit('.', 1)[0]
                 try:
                     with open(os.path.join(POEM_DIR, f), encoding='utf-8') as fh:
                         content = fh.read()
-                    poems_list.append({'title': title, 'file': f, 'content': content})
+                    cat = '小说' if f in STORY_FILES else '诗'
+                    poems_list.append({'title': title, 'file': f, 'content': content, 'cat': cat})
                 except Exception:
                     pass
 
@@ -2935,6 +3502,9 @@ h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px;font-family:
 .poem-card:hover{border-left:4px solid #8b0000}
 .poem-title{font-size:18px;font-weight:bold;color:#8b0000}
 .poem-preview{color:#555;font-size:14px;margin-top:6px;white-space:pre-wrap}
+.cat-tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:8px;margin-left:8px;font-family:system-ui,sans-serif}
+.cat-poem{background:#1a1a2e11;color:#1a1a2e;border:1px solid #1a1a2e22}
+.cat-story{background:#8b000011;color:#8b0000;border:1px solid #8b000022}
 .poem-full{background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);margin-top:20px;font-size:17px;white-space:pre-wrap}
 .poem-full .pt{font-size:22px;font-weight:bold;color:#8b0000;margin-bottom:16px;text-align:center}
 .back{display:inline-block;margin-top:16px;color:#4a7dff;text-decoration:none}
@@ -2950,10 +3520,27 @@ h1{color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:8px;font-family:
         else:
             html += '<p>未找到这首诗</p><a class="back" href="/poems">← 返回</a>'
     else:
-        html += f'<p style="color:#888;font-family:system-ui,sans-serif">共 {len(poems_list)} 篇 · 心哥的即兴</p>'
+        html += f'<p style="color:#888;font-family:system-ui,sans-serif">共 {len(poems_list)} 篇 · 心哥的即兴（诗 · 短篇小说）</p>'
+        # 分类标签
+        html += '''<div style="margin:12px 0;font-family:system-ui,sans-serif">
+<a href="?cat=诗" style="display:inline-block;margin:4px;padding:8px 16px;background:#1a1a2e;color:#faf8f5;text-decoration:none;border-radius:6px;font-size:14px">📜 诗</a>
+<a href="?cat=小说" style="display:inline-block;margin:4px;padding:8px 16px;background:#8b0000;color:#faf8f5;text-decoration:none;border-radius:6px;font-size:14px">📖 短篇小说</a>
+<a href="/poems" style="display:inline-block;margin:4px;padding:8px 16px;background:#555;color:#fff;text-decoration:none;border-radius:6px;font-size:14px">全部</a>
+</div>'''
+        # 按 cat 筛选
+        cat = request.args.get('cat', '')
+        if cat:
+            poems_list = [x for x in poems_list if x['cat'] == cat]
+        # 分类标题
+        if cat == '诗':
+            html += '<p style="color:#888;font-family:system-ui,sans-serif">📜 诗歌 ' + str(len(poems_list)) + ' 首</p>'
+        elif cat == '小说':
+            html += '<p style="color:#888;font-family:system-ui,sans-serif">📖 短篇小说 ' + str(len(poems_list)) + ' 篇</p>'
         for poem in poems_list:
             preview = poem['content'].replace('\n', ' ')[:80]
-            html += f'<a class="poem-card" href="/poems?p={poem["file"]}"><div class="poem-title">《{esc(poem["title"])}》</div><div class="poem-preview">{esc(preview)}...</div></a>'
+            tag_cls = 'cat-story' if poem.get('cat') == '小说' else 'cat-poem'
+            tag_txt = '📖 小说' if poem.get('cat') == '小说' else '📜 诗'
+            html += f'<a class="poem-card" href="/poems?p={poem["file"]}"><div class="poem-title">《{esc(poem["title"])}》<span class="cat-tag {tag_cls}">{tag_txt}</span></div><div class="poem-preview">{esc(preview)}...</div></a>'
     html += '</body></html>'
     return html
 
@@ -3095,7 +3682,7 @@ def api_tts():
     return jsonify(result)
 
 
-_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">八套术数引擎 · 输入生达即可起盘\n<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;padding:10px 14px;margin:10px 0 14px;font-size:13px;color:#2e7d32">🔒 <b>纯本地运行</b>：排盘全部在本服务器计算，你的生日完全不会上传到任何外部服务器。数据不出这台机器。</div></p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><input type=\"date\" name=\"bdate\" value=\"2026-07-28\" required></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-bottom:14px">
+_STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no\">\n<title>玄学管家 / 莫名心小站</title>\n<style>\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:system-ui,-apple-system,\"PingFang SC\",sans-serif;background:#f5f0eb;color:#2c2c2c;padding:16px;max-width:640px;margin:0 auto;min-height:100vh}\nh1{font-size:22px;margin-bottom:2px}\n.sub{color:#888;font-size:13px;margin-bottom:16px}\n.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:12px}\nlabel{font-size:14px;font-weight:500;display:block;margin-bottom:6px;color:#555}\ninput,select{width:100%;padding:14px;border:2px solid #e0d8d2;border-radius:12px;font-size:16px;outline:none;background:#fff;box-sizing:border-box}\ninput:focus,select:focus{border-color:#b8453a}\ninput{margin-bottom:14px}\nselect{margin-bottom:14px;appearance:none}\n.btn{width:100%;padding:14px;background:#b8453a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}\n.btn:active{opacity:.8}\n.tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;margin-right:4px;margin-bottom:4px}\n.tag-bazi{background:#e74c3c22;color:#e74c3c}\n.tag-ziwei{background:#8e44ad22;color:#8e44ad}\n.tag-qimen{background:#2980b922;color:#2980b9}\n.tag-meihua{background:#27ae6022;color:#27ae60}\n.tag-liuren{background:#d3540022;color:#d35400}\n.footer{text-align:center;margin-top:20px;font-size:13px;color:#888}\na{color:#4a7dff;text-decoration:none}\n#loading{display:none;text-align:center;padding:20px}\n.spinner{display:inline-block;width:24px;height:24px;border:3px solid #eee;border-top-color:#b8453a;border-radius:50%;animation:spin .8s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n</style></head><body>\n<h1>🧙 玄学管家</h1>\n<p class=\"sub\">八套术数引擎 · 输入生达即可起盘\n<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;padding:10px 14px;margin:10px 0 14px;font-size:13px;color:#2e7d32">🔒 <b>纯本地运行</b>：排盘全部在本服务器计算，你的生日完全不会上传到任何外部服务器。数据不出这台机器。</div></p>\n<div class=\"card\">\n<form method=\"post\" action=\"/steward\" onsubmit=\"if(!packDates())return false;document.getElementById('loading').style.display='block';document.getElementById('submitBtn').disabled=true\">\n<label>生达</label>\n<div style="display:flex;gap:8px"><div style="flex:1"><label>\u65e5\u671f</label><div style="display:flex;gap:6px"><select name="bdate_year" style="flex:1.4;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate_month" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate_day" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><input type="hidden" name="bdate" value="2026-07-28"></div></div><div style="flex:none;width:120px"><label>\u65f6\u95f4</label><input type=\"time\" name=\"btime\" value=\"12:00\" step=\"60\"></div></div>\n<div style="margin-top:10px"><label>经度（真太阳时校正，默认120，可留空）</label><input type="text" name="longitude" placeholder="如 114.7（张家口坝上）" value=""></div>\n<div style="margin-bottom:14px">
 <label>模式</label>
 <div style="display:flex;gap:10px;margin-top:4px">
 <label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer">
@@ -3111,7 +3698,7 @@ _STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"U
 <div style="display:flex;gap:8px;margin-bottom:10px">
 <div style="flex:1">
 <label style="font-size:12px">日期</label>
-<input type="date" name="bdate2" value="2026-07-28" required>
+<div style="display:flex;gap:6px"><select name="bdate2_year" style="flex:1.4;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate2_month" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><select name="bdate2_day" style="flex:1;padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:15px"></select><input type="hidden" name="bdate2" value="2026-07-28"></div>
 </div>
 <div style="flex:none;width:100px">
 <label style="font-size:12px">时间</label>
@@ -3150,10 +3737,95 @@ _STEWARD_HTML = """<!DOCTYPE html><html lang=\"zh-CN\"><head>\n<meta charset=\"U
 </label>
 </div>
 </div>
-<label>术数</label>\n<select name=\"mode\">\n<option value=\"bazi\">八字 — 子平八字排盘</option>\n<option value=\"ziwei\">紫微斗数 — 紫微课盘</option>\n<option value=\"qimen\">奇门道甲 — 时家奇门盘</option>\n<option value=\"liuren\">大六壬 — 六壬课经</option>\n<option value=\"meihua\">梅花易数 — 梅花起卦</option><option value="jinkoujue">金口诀 — 金口诀课经</option><option value="wuyunliuqi">五运六气 — 岁运客主加临</option><option value="xiaoliuren">小六壬 — 道传起卦</option>\n<option value=\"all\">全量 — 所有术数</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n
+<label>术数</label>\n<select name=\"mode\">\n<option value=\"bazi\">八字 — 子平八字排盘</option>\n<option value=\"ziwei\">紫微斗数 — 紫微课盘</option>\n<option value=\"qimen\">奇门道甲 — 时家奇门盘</option>\n<option value=\"liuren\">大六壬 — 六壬课经</option>\n<option value=\"meihua\">梅花易数 — 梅花起卦</option><option value="jinkoujue">金口诀 — 金口诀课经</option><option value="wuyunliuqi">五运六气 — 岁运客主加临</option><option value="xiaoliuren">小六壬 — 道传起卦</option>\n<option value=\"all\">全量 — 所有术数</option>\n</select>\n<label style=\"display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:#555;font-weight:500\">\n<input type=\"checkbox\" name=\"full_stars\" value=\"1\" style=\"width:17px;height:17px;margin:0;accent-color:#b8453a\"> 紫微全星图（含红鸾/咸池/寡宿等杂曜）\n</label>\n<label style=\"display:block;margin:8px 0 4px;font-size:13px;color:#555;font-weight:500\">日界流派（晚子时23-24点出生才影响）</label>\n<select name=\"sect\" style=\"padding:10px;border:2px solid #e0d8d2;border-radius:10px;font-size:14px;margin-bottom:14px\">\n<option value=\"1\">子正换日（默认：晚子时算当日）</option>\n<option value=\"2\">子初换日（iztro 流派：晚子时按次日排盘）</option>\n</select>\n<button type=\"submit\" class=\"btn\" id=\"submitBtn\">起盘</button>\n</form>\n</div>\n<div id=\"loading\" class=\"card\" style=\"display:none;text-align:center\"><div class=\"spinner\"></div><p style=\"margin-top:8px;color:#888\">计算中...</p></div>\n<p style=\"text-align:center;margin-top:12px\">\n<span class=\"tag tag-bazi\">八字</span>\n<span class=\"tag tag-ziwei\">紫微</span>\n<span class=\"tag tag-qimen\">奇门</span>\n<span class=\"tag tag-liuren\">六壬</span>\n<span class=\"tag tag-meihua\">梅花</span>\n<span class=\"tag tag-jinkoujue\" style=\"background:#e67e2222;color:#e67e22\">金口诀</span>\n<span class=\"tag tag-wuyun\" style=\"background:#1abc9c22;color:#1abc9c\">五运六气</span>\n</p>\n<div class=\"footer\"><a href=\"/tools\">← 工具台</a></div>\n
 <div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:10px;padding:10px 14px;margin-top:16px;font-size:12px;color:#8d6e63;line-height:1.7">
 ⚠️ <b>免责声明</b>：本站所有术数排盘结果（八字/紫微/奇门/六壬/梅花/金口诀/五运六气/小六壬）仅供<b>娱乐与传统文化研究</b>，不构成任何医疗、投资、法律、婚恋或重大决策建议。排盘为纯本地计算，数据不出本机；AI 解读由大模型生成，可能存在误差。请理性看待，一切以现实为准，风险自担。
-</div></body></html>"""
+</div></body><script>
+(function(){
+  function initDate(y,m,d,defY,defM,defD){
+    var now=new Date(),i;
+    for(i=now.getFullYear();i>=1900;i--){var o=document.createElement('option');o.value=i;o.text=i+'年';if(i===defY)o.selected=true;y.appendChild(o);}
+    for(i=1;i<=12;i++){var o=document.createElement('option');o.value=i;o.text=i+'月';if(i===defM)o.selected=true;m.appendChild(o);}
+    function fillDays(){
+      var yy=+y.value,mm=+m.value,dim=new Date(yy,mm,0).getDate();
+      d.innerHTML='';
+      for(var dd=1;dd<=dim;dd++){var o=document.createElement('option');o.value=dd;o.text=dd+'日';if(dd===defD)o.selected=true;d.appendChild(o);}
+    }
+    y.onchange=fillDays;m.onchange=fillDays;fillDays();
+  }
+  function packDates(){
+    function pack(ys,ms,ds,hid){
+      hid.value=ys.value+'-'+('00'+ms.value).slice(-2)+'-'+('00'+ds.value).slice(-2);
+    }
+    pack(document.getElementsByName('bdate_year')[0],document.getElementsByName('bdate_month')[0],document.getElementsByName('bdate_day')[0],document.getElementsByName('bdate')[0]);
+    if(document.getElementsByName('bdate2')[0]){
+      pack(document.getElementsByName('bdate2_year')[0],document.getElementsByName('bdate2_month')[0],document.getElementsByName('bdate2_day')[0],document.getElementsByName('bdate2')[0]);
+    }
+    return true;
+  }
+  window.packDates=packDates;
+  initDate(document.getElementsByName('bdate_year')[0],document.getElementsByName('bdate_month')[0],document.getElementsByName('bdate_day')[0],2006,9,22);
+  if(document.getElementsByName('bdate2_year')[0]){initDate(document.getElementsByName('bdate2_year')[0],document.getElementsByName('bdate2_month')[0],document.getElementsByName('bdate2_day')[0],2006,9,22);}
+})();
+</script>
+</html>"""
+
+
+
+# AI 分析 Markdown 渲染 (steward 等页面共用)
+_MD_RENDER_JS = """
+function mdEsc(t){
+  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mdInline(t){
+  t = mdEsc(t);
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0ebe5;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+  return t;
+}
+function mdRender(text){
+  var olIdx = 0;
+  if(!text) return '';
+  text = text.replace(/^#{1,6}\s+(#{1,6}\s+)/gm, '$1');
+  var lines = text.split('\\n');
+  var html = '', inList = false, i, m, l;
+  function closeList(){ if(inList){ html += (inList==='ol'?'</ol>':'</ul>'); inList = false; } }
+  for(i=0;i<lines.length;i++){
+    l = lines[i];
+    // ==== Markdown 表格 ====
+    if(/^\s*\|/.test(l)){
+      var tbl = [l.trim()];
+      while(i+1 < lines.length && /^\s*\|/.test(lines[i+1])){
+        tbl.push(lines[i+1].trim()); i++;
+      }
+      if(tbl.length >= 2 && /^\|[\s:\-|]+\|$/.test(tbl[1])){
+        closeList();
+        var hdr = tbl[0].split('|').slice(1,-1);
+        html += '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">';
+        html += '<thead><tr>' + hdr.map(function(c){return '<th style="background:#b8453a11;color:#b8453a;padding:6px 8px;border:1px solid #e0d8d2;text-align:left">'+mdInline(c.trim())+'</th>'}).join('') + '</tr></thead><tbody>';
+        for(var r=2;r<tbl.length;r++){
+          var cells = tbl[r].split('|').slice(1,-1);
+          html += '<tr>' + cells.map(function(c){return '<td style="padding:6px 8px;border:1px solid #e0d8d2;vertical-align:top">'+mdInline(c.trim())+'</td>'}).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+    }
+    // ==== 标题 ====
+    if(m = l.match(/^###\s+(.*)/)){ closeList(); html += '<h4 style="margin:14px 0 6px;color:#b8453a;font-size:14px">'+mdInline(m[1])+'</h4>'; }
+    else if(m = l.match(/^##\s+(.*)/)){ closeList(); html += '<h3 style="margin:16px 0 6px;color:#b8453a;font-size:15px">'+mdInline(m[1])+'</h3>'; }
+    else if(m = l.match(/^#\s+(.*)/)){ closeList(); html += '<h2 style="margin:18px 0 8px;color:#b8453a;font-size:17px;border-bottom:2px solid #b8453a33;padding-bottom:4px">'+mdInline(m[1])+'</h2>'; }
+    // ==== 列表 ====
+    else if(m = l.match(/^[-*]\s+(.*)/)){ if(!inList){ html += '<ul style="margin:6px 0;padding-left:20px">'; inList = 'ul'; } html += '<li style="margin:3px 0">'+mdInline(m[1])+'</li>'; }
+    else if(m = l.match(/^\d+\.\s+(.*)/)){ if(!inList){ html += '<ol style="margin:6px 0;padding-left:20px;list-style:none">'; inList = 'ol'; } olIdx++; html += '<li style="margin:3px 0"><b style="color:#b8453a">'+olIdx+'.</b> '+mdInline(m[1])+'</li>'; }
+    // ==== 空行/段落 ====
+    else if(l.trim()===''){ closeList(); }
+    else { closeList(); html += '<p style="margin:6px 0;line-height:1.8">'+mdInline(l)+'</p>'; }
+  }
+  closeList();
+  return html;
+}
+"""
 
 @app.route("/steward", methods=["GET", "POST"])
 @login_required
@@ -3176,6 +3848,11 @@ def steward():
         try:
             dual = data.get("dual", "single")
             relation = data.get("relation", "love")
+            full_stars = data.get("full_stars") in ("1", "true", "True", True, 1)
+            extra = ["--full"] if full_stars else []
+            sect = data.get("sect", "1")
+            if sect in ("1", "2"):
+                extra += ["--sect", sect]
             
             if mode == "wuyunliuqi":
                 try:
@@ -3202,12 +3879,12 @@ def steward():
                 raw_p1 = ""
                 raw_p2 = ""
                 try:
-                    r1 = _sp.run(["python3", steward_script, "--birthdate", birthdate, "--sex", data.get("sex","1"), "--birthplace", data.get("longitude","120"), "--mode", mode], capture_output=True, text=True, timeout=20)
+                    r1 = _sp.run(["python3", steward_script, "--birthdate", birthdate, "--sex", data.get("sex","1"), "--birthplace", data.get("longitude","120"), "--mode", mode] + extra, capture_output=True, text=True, timeout=20)
                     raw_p1 = (r1.stdout or "")[:5000]
                 except:
                     raw_p1 = f"第一人排盘错误"
                 try:
-                    r2 = _sp.run(["python3", steward_script, "--birthdate", bd2, "--sex", sex2, "--birthplace", data.get("longitude","120"), "--mode", mode], capture_output=True, text=True, timeout=20)
+                    r2 = _sp.run(["python3", steward_script, "--birthdate", bd2, "--sex", sex2, "--birthplace", data.get("longitude","120"), "--mode", mode] + extra, capture_output=True, text=True, timeout=20)
                     raw_p2 = (r2.stdout or "")[:5000]
                 except:
                     raw_p2 = f"第二人排盘错误"
@@ -3217,18 +3894,26 @@ def steward():
                             "--birthdate", birthdate,
                             "--sex", data.get("sex", "1"),
                             "--birthplace", data.get("longitude", "120"),
-                            "--mode", mode],
+                            "--mode", mode] + extra,
                            capture_output=True, text=True, timeout=20)
                 raw = (r.stdout or "")[:6000]
                 if not raw:
                     raw = (r.stderr or "")[:2000] or "暂无输出"
             
-            # AI \u89e3\u8bfb
+            # AI 解读
             interpretation = ""
             try:
                 import urllib.request as _ur
                 import json as _jm
-                _ds_key = "sk-ccb1ffae67ba4f46a9dcad04302243d9"
+                # 密钥从 密钥.json 读取（不入库），无则用环境变量，不再硬编码
+                _ds_key = os.environ.get("DEEPSEEK_API_KEY", "")
+                _key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "密钥.json")
+                if not _ds_key and os.path.isfile(_key_path):
+                    try:
+                        with open(_key_path, "r", encoding="utf-8") as _kf:
+                            _ds_key = json.load(_kf).get("deepseek_api_key", "")
+                    except Exception:
+                        _ds_key = ""
                 if _ds_key:
                     p = _jm.dumps({
                         "model": "deepseek-chat",
@@ -3241,11 +3926,10 @@ def steward():
                     req = _ur.Request("https://api.deepseek.com/chat/completions",
                                      data=p,
                                      headers={"Content-Type": "application/json",
-                                              "Authorization": "Bearer sk-ccb1ffae67ba4f46a9dcad04302243d9"})
+                                              "Authorization": "Bearer " + _ds_key})
                     resp = _ur.urlopen(req, timeout=20).read()
                     interpretation = _jm.loads(resp).get("choices", [{}])[0].get("message", {}).get("content", "")
             except:
-                pass
                 pass
             
             # \u6784\u5efa\u7ed3\u679c\u9875\u9762
@@ -3275,11 +3959,13 @@ def steward():
                 h += '<button class="btn" style="margin-bottom:12px" onclick="aiDeep()">\U0001f52e AI \u6df1\u5ea6\u5206\u6790</button><div id="aiOut"></div>'
                 h += '<a class="btn" href="/steward">\u518d\u7b97\u4e00\u6b21</a>'
                 h += '<div class="footer"><a href="/tools">\u2190 \u5de5\u5177\u53f0</a></div>'
+                h += '<script>' + _MD_RENDER_JS + '</script>'
                 h += '<script>var aiRaw=' + json.dumps(raw[:6000], ensure_ascii=False) + ';'
                 h += 'async function aiDeep(){var out=document.getElementById(\'aiOut\');if(out.innerHTML){out.innerHTML=\'\';return}'
                 h += 'out.innerHTML=\'<div style="padding:12px;color:#888">AI 分析中…（约30秒）</div>\';'
-                h += 'try{var r=await fetch(\'/ai-read\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Requested-With\':\'XMLHttpRequest\'},body:JSON.stringify({text:aiRaw.slice(0,6000),scene:\'xuanxue_general\'})});var d=await r.json();'
-                h += 'out.innerHTML=d.error?\'<div style="padding:12px;color:#c0392b">\'+d.error+\'</div>\':\'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">\'+d.answer.replace(/\\n/g,\'<br>\')+\'</div>\';}'
+                h += 'var _t=setTimeout(function(){out.innerHTML=\'<div style="padding:12px;color:#c0392b">⏱ AI 响应超时，请重试</div>\';},30000);'
+                h += 'try{var r=await fetch(\'/ai-read\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Requested-With\':\'XMLHttpRequest\'},body:JSON.stringify({text:aiRaw.slice(0,6000),scene:\'xuanxue_general\'})});var d=await r.json();clearTimeout(_t);'
+                h += 'out.innerHTML=d.error?\'<div style="padding:12px;color:#c0392b">\'+d.error+\'</div>\':\'<div style="padding:14px;background:#fff8e6;border-radius:10px;margin-top:10px;line-height:1.7">\'+mdRender(d.answer)+\'</div>\';}'
                 h += 'catch(e){out.innerHTML=\'<div style="padding:12px;color:#c0392b">请求失败</div>\';}}</script>'
                 h += '</body></html>'
                 return h
@@ -3444,6 +4130,20 @@ h1{font-size:1.3rem;margin-bottom:4px}
 <div class="card-icon">📚</div>
 <div class="card-name">知识库问答</div>
 <div class="card-desc">道归·医书·哲学RAG</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/meddocs" class="card">
+<div class="card-icon">🪡</div>
+<div class="card-name">中西医结合推论</div>
+<div class="card-desc">总纲·辨证·经络·本草</div>
+<span class="badge badge-new">NEW</span>
+</a>
+
+<a href="/kxwonders" class="card">
+<div class="card-icon">⚡</div>
+<div class="card-name">KX 神迹</div>
+<div class="card-desc">跨领域超级融合档案</div>
 <span class="badge badge-new">NEW</span>
 </a>
 
