@@ -95,11 +95,10 @@ def _render_category(index, category):
     for d in docs:
         title = d.get("title", "无标题") or "无标题"
         fname = d.get("file", "")
-        # 从索引找文件名（索引没有file字段，需要从文件名映射）
-        # Use a short doc_id (first 30 chars, strip hash) to avoid URL bloat
-        short_id = fname.rsplit('_', 1)[0][:40] if '_' in fname else fname[:40]
+        # 直接传完整文件名（去掉 .md 后缀），保证 _render_doc 精确匹配，杜绝张冠李戴
+        doc_key = fname[:-3] if fname.endswith('.md') else fname
         doc_list += f'''
-        <a href="?cat={quote(category)}&doc={quote(short_id)}" class="doc-item">
+        <a href="?cat={quote(category)}&doc={quote(doc_key)}" class="doc-item">
           <div class="doc-title">{html_mod.escape(title[:60])}</div>
           <div class="doc-meta">{d.get("chars", 0)}字</div>
         </a>'''
@@ -146,20 +145,33 @@ from md_render_js import MD_RENDER_JS
 
 def _render_doc(doc_id):
     """文档阅读页（mdRender 前端渲染，米白暖色）"""
-    # Find the actual file
+    # 1) 优先精确匹配：doc_id 本身或 +.md
     fname = doc_id
     if not fname.endswith('.md'):
         fname += '.md'
 
     filepath = os.path.join(LIB_DIR, fname)
+
+    # 2) 找不到精确文件时，才用模糊匹配（仅限“唯一命中”，有歧义不猜）
     if not os.path.isfile(filepath):
-        # Try to find by partial match (strip hash suffix)
         base_key = doc_id.rsplit('_', 1)[0] if '_' in doc_id else doc_id
         base_key = base_key.replace('.md', '')
-        for f in sorted(os.listdir(LIB_DIR), reverse=True):
-            if base_key[:10] in f or base_key in f:
-                filepath = os.path.join(LIB_DIR, f)
-                break
+        # 精确文件名 == base_key（去掉日期/hash 后缀）优先
+        exact_hits = []
+        loose_hits = []
+        for f in os.listdir(LIB_DIR):
+            if f.endswith('.md'):
+                stem = f[:-3]
+                if stem == base_key:
+                    exact_hits.append(f)
+                elif base_key in f:
+                    loose_hits.append(f)
+        # 唯一精确命中 → 用它；否则若存在“唯一包含命中”才用，多义则放弃（避免点20批跳到9批）
+        if len(exact_hits) == 1:
+            filepath = os.path.join(LIB_DIR, exact_hits[0])
+        elif len(loose_hits) == 1:
+            filepath = os.path.join(LIB_DIR, loose_hits[0])
+        # 否则保持 filepath 为不存在的精确路径（文档未找到）
 
     content = ""
     title = "文档未找到"
